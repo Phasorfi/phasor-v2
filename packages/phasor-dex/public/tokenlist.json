@@ -1,0 +1,66 @@
+{
+  "name": "Phasor V2 Local Token List",
+  "version": {
+    "major": 1,
+    "minor": 0,
+    "patch": 0
+  },
+  "tokens": [
+    {
+      "chainId": 10143,
+      "address": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+      "name": "Wrapped Monad",
+      "symbol": "WMON",
+      "decimals": 18,
+      "logoURI": ""
+    },
+    {
+      "chainId": 10143,
+      "address": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+      "name": "USD Coin",
+      "symbol": "USDC",
+      "decimals": 6,
+      "logoURI": ""
+    },
+    {
+      "chainId": 10143,
+      "address": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+      "name": "Tether USD",
+      "symbol": "USDT",
+      "decimals": 6,
+      "logoURI": ""
+    },
+    {
+      "chainId": 10143,
+      "address": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+      "name": "Wrapped Ether",
+      "symbol": "WETH",
+      "decimals": 18,
+      "logoURI": ""
+    },
+    {
+      "chainId": 10143,
+      "address": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+      "name": "Wrapped Bitcoin",
+      "symbol": "WBTC",
+      "decimals": 8,
+      "logoURI": ""
+    },
+    {
+      "chainId": 10143,
+      "address": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+      "name": "Wrapped SOL",
+      "symbol": "SOL",
+      "decimals": 9,
+      "logoURI": ""
+    },
+    {
+      "chainId": 10143,
+      "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+      "name": "Folks Finance",
+      "symbol": "FOLKS",
+      "decimals": 6,
+      "logoURI": ""
+    }
+  ]
+}

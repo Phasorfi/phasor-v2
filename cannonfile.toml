@@ -1,0 +1,20 @@
+name = "phasor-v2"
+version = "<%= package.version %>"
+description = "Native DEX for Monad"
+keywords = ["DEX", "Monad"]
+
+privateSourceCode = false
+
+# Main settings for Factory and Router
+[var.main]
+owner = "0x2022e2849b156A125EDB4806FA103d743f74cc74"
+safe = "0xB8C6C815B2B93394C21f944c5A061872B2765C75"
+WMON = "0xbbdbCfEf20072142e233F61eD26005c7d2983C5f"
+
+[deploy.UniswapV2Factory]
+artifact = "packages/core/contracts/UniswapV2Factory.sol:UniswapV2Factory"
+args = ["<%= settings.safe %>"]
+
+[deploy.UniswapV2Router]
+artifact = "UniswapV2Router02"
+args = ["<%= contracts.UniswapV2Factory.address %>", "<%= settings.WMON %>"]

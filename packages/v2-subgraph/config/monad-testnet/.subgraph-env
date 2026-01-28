@@ -1,0 +1,2 @@
+ETHEREUM_NETWORK=monad-testnet
+ETHEREUM_RPC_URL=https://testnet-rpc.monad.xyz

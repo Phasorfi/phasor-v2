@@ -1,0 +1,20 @@
+<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="600" fill="#121212"/>
+  <path d="M 0,300 Q 100,200 200,300 T 400,300 T 600,300 T 800,300"
+        stroke="#FFFFFF"
+        stroke-width="3"
+        fill="none"
+        opacity="0.9"/>
+  <path d="M 0,300 Q 100,200 200,300 T 400,300 T 600,300 T 800,300"
+        stroke="#FFFFFF"
+        stroke-width="1"
+        fill="none"
+        opacity="0.3"
+        transform="translate(0, 40)"/>
+  <path d="M 0,300 Q 100,200 200,300 T 400,300 T 600,300 T 800,300"
+        stroke="#FFFFFF"
+        stroke-width="1"
+        fill="none"
+        opacity="0.3"
+        transform="translate(0, -40)"/>
+</svg>

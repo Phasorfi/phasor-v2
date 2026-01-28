@@ -1,0 +1,18 @@
+[profile.default]
+src = "packages/"
+out = "out"
+libs = ["node_modules", "lib", "packages/core/node_modules", "packages/periphery/node_modules"]
+remappings = [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "@uniswap/v2-core/=packages/periphery/node_modules/@uniswap/v2-core/",
+    "@uniswap/lib/=packages/periphery/node_modules/@uniswap/lib/"
+]
+
+# Force @uniswap/lib to compile with Solidity 0.6.6 to match periphery contracts
+compilation_restrictions = [
+    { paths = "packages/periphery/node_modules/@uniswap/lib/**", version = "0.6.6" }
+]
+
+# The optimizer is the key here
+optimizer = true
+optimizer_runs = 99999 # Lowering this number reduces deployment size
