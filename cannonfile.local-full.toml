@@ -58,22 +58,38 @@ args = ["<%= BigInt(5000000000000) %>"]  # 5,000,000 * 10^6
 [deploy.PhasorToken]
 artifact = "packages/phasor-contracts/contracts/token/PhasorToken.sol:PhasorToken"
 
-# MasterChef farming contract
-[deploy.MasterChef]
-artifact = "packages/phasor-contracts/contracts/farming/MasterChef.sol:MasterChef"
-args = [
-    "<%= contracts.PhasorToken.address %>",
-    "<%= BigInt(100000000000000000000) %>",
-    "1"
-]
+# ============================================================================
+# Staking System (VotingEscrow + StakingRewards + RewardsDistributor)
+# ============================================================================
+
+# VotingEscrow (vePHASOR) - Time-locked PHASOR for governance and boost
+[deploy.VotingEscrow]
+artifact = "packages/phasor-contracts/contracts/governance/VotingEscrow.sol:VotingEscrow"
+args = ["<%= contracts.PhasorToken.address %>"]
 depends = ["deploy.PhasorToken"]
 
-# Transfer PhasorToken ownership to MasterChef so it can mint rewards
+# RewardsDistributor - Weekly PHASOR emissions to staking pools
+[deploy.RewardsDistributor]
+artifact = "packages/phasor-contracts/contracts/staking/RewardsDistributor.sol:RewardsDistributor"
+args = ["<%= contracts.PhasorToken.address %>"]
+depends = ["deploy.PhasorToken"]
+
+# StakingRewards - Time-weighted LP staking with ve-boost
+[deploy.StakingRewards]
+artifact = "packages/phasor-contracts/contracts/staking/StakingRewards.sol:StakingRewards"
+args = [
+    "<%= contracts.PhasorToken.address %>",
+    "<%= contracts.VotingEscrow.address %>",
+    "<%= contracts.RewardsDistributor.address %>"
+]
+depends = ["deploy.VotingEscrow", "deploy.RewardsDistributor"]
+
+# Transfer PhasorToken ownership to RewardsDistributor so it can mint rewards
 [invoke.transfer_phasor_ownership]
 target = ["PhasorToken"]
 func = "transferOwnership"
-args = ["<%= contracts.MasterChef.address %>"]
-depends = ["deploy.MasterChef"]
+args = ["<%= contracts.RewardsDistributor.address %>"]
+depends = ["deploy.RewardsDistributor"]
 
 # ============================================================================
 # Launchpad Ecosystem

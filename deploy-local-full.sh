@@ -186,7 +186,9 @@ deploy_contracts() {
 
     # PHASOR Ecosystem addresses
     ADDRESSES["PhasorToken"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.PhasorToken\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
-    ADDRESSES["MasterChef"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.MasterChef\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
+    ADDRESSES["VotingEscrow"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.VotingEscrow\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
+    ADDRESSES["RewardsDistributor"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.RewardsDistributor\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
+    ADDRESSES["StakingRewards"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.StakingRewards\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
     ADDRESSES["FairLaunchTemplate"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.FairLaunchTemplate\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
     ADDRESSES["LaunchpadFactory"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.LaunchpadFactory\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
 
@@ -198,7 +200,9 @@ deploy_contracts() {
     log_info "Router: ${ADDRESSES[Router]}"
     log_info "WMON: ${ADDRESSES[WMON]}"
     log_info "PhasorToken: ${ADDRESSES[PhasorToken]}"
-    log_info "MasterChef: ${ADDRESSES[MasterChef]}"
+    log_info "VotingEscrow: ${ADDRESSES[VotingEscrow]}"
+    log_info "RewardsDistributor: ${ADDRESSES[RewardsDistributor]}"
+    log_info "StakingRewards: ${ADDRESSES[StakingRewards]}"
     log_info "LaunchpadFactory: ${ADDRESSES[LaunchpadFactory]}"
     log_info "Deployment block: $FACTORY_DEPLOY_BLOCK"
 }
@@ -314,103 +318,140 @@ create_liquidity_pools() {
 }
 
 # ============================================================================
-# Step 4.5: Setup Farming Pools
+# Step 4.5: Setup Staking System (VotingEscrow + StakingRewards)
 # ============================================================================
 
-setup_farming_pools() {
-    log_step "Step 4.5: Setting up farming pools in MasterChef..."
+setup_staking_system() {
+    log_step "Step 4.5: Setting up staking system..."
 
-    local masterchef="${ADDRESSES[MasterChef]}"
+    local staking="${ADDRESSES[StakingRewards]}"
+    local distributor="${ADDRESSES[RewardsDistributor]}"
+    local ve="${ADDRESSES[VotingEscrow]}"
+    local phasor="${ADDRESSES[PhasorToken]}"
     local factory="${ADDRESSES[Factory]}"
 
-    # Verify MasterChef owns PhasorToken
-    local phasor_owner=$(cast call ${ADDRESSES[PhasorToken]} "owner()(address)" --rpc-url $RPC_URL)
-    if [ "${phasor_owner,,}" != "${masterchef,,}" ]; then
-        log_error "MasterChef does not own PhasorToken! Cannot mint rewards."
+    # Verify RewardsDistributor owns PhasorToken
+    local phasor_owner=$(cast call $phasor "owner()(address)" --rpc-url $RPC_URL)
+    if [ "${phasor_owner,,}" != "${distributor,,}" ]; then
+        log_error "RewardsDistributor does not own PhasorToken! Cannot mint rewards."
         log_info "PhasorToken owner: $phasor_owner"
-        log_info "MasterChef: $masterchef"
+        log_info "RewardsDistributor: $distributor"
         return 1
     fi
-    log_success "MasterChef owns PhasorToken (can mint rewards)"
+    log_success "RewardsDistributor owns PhasorToken (can mint rewards)"
 
-    # Pool configurations: LP_PAIR:ALLOC_POINTS
-    # Higher alloc = more PHASOR rewards
-    local FARM_POOLS=(
-        "WMON-USDC:4000"     # 40% - Main stablecoin pool
-        "WMON-USDT:2000"     # 20% - Secondary stablecoin
-        "WMON-WETH:2000"     # 20% - ETH pool
-        "WMON-WBTC:1000"     # 10% - BTC pool
-        "WMON-SOL:500"       # 5% - SOL pool
-        "WMON-FOLKS:500"     # 5% - FOLKS pool
-    )
+    # Get WMON-USDC LP pair address for staking
+    local wmon_usdc_lp=$(cast call $factory "getPair(address,address)(address)" ${ADDRESSES[WMON]} ${ADDRESSES[USDC]} --rpc-url $RPC_URL)
+    ADDRESSES["LP_WMON-USDC"]=$wmon_usdc_lp
+    log_info "WMON-USDC LP pair: $wmon_usdc_lp"
 
-    local pool_id=0
-    for pool_config in "${FARM_POOLS[@]}"; do
-        IFS=':' read -r pair_name alloc_points <<< "$pool_config"
-        IFS='-' read -r token0_name token1_name <<< "$pair_name"
+    # Set staking token on StakingRewards
+    log_info "  Setting staking token on StakingRewards..."
+    cast send $staking \
+        "setStakingToken(address)" \
+        $wmon_usdc_lp \
+        --private-key $DEPLOYER_KEY \
+        --rpc-url $RPC_URL > /dev/null 2>&1 || {
+            log_error "Failed to set staking token"
+            return 1
+        }
+    log_success "  Staking token set to WMON-USDC LP"
 
-        local token0="${ADDRESSES[$token0_name]}"
-        local token1="${ADDRESSES[$token1_name]}"
+    # Add staking pool to RewardsDistributor (100% allocation to single pool)
+    log_info "  Adding staking pool to RewardsDistributor..."
+    cast send $distributor \
+        "addPool(address,uint256)" \
+        $staking \
+        1000 \
+        --private-key $DEPLOYER_KEY \
+        --rpc-url $RPC_URL > /dev/null 2>&1 || {
+            log_error "Failed to add pool to RewardsDistributor"
+            return 1
+        }
+    log_success "  Pool added to RewardsDistributor (1000 alloc points)"
 
-        # Get LP pair address
-        local lp_pair=$(cast call $factory "getPair(address,address)(address)" $token0 $token1 --rpc-url $RPC_URL)
+    # Setup test data: Create vePHASOR lock for deployer
+    log_info "  Creating test vePHASOR lock for deployer..."
 
-        if [ "$lp_pair" = "0x0000000000000000000000000000000000000000" ]; then
-            log_error "  LP pair not found for $pair_name"
-            continue
-        fi
+    # First, mint some PHASOR to deployer for locking
+    # RewardsDistributor owns PhasorToken, so we need to use the distribute function
+    # or we can transfer from initial supply
 
-        log_info "  Adding $pair_name pool (ID: $pool_id, alloc: $alloc_points)"
+    # Transfer PHASOR to deployer from initial supply (deployer has 100M initial)
+    local deployer_phasor=$(cast call $phasor "balanceOf(address)(uint256)" $DEPLOYER_ADDR --rpc-url $RPC_URL)
+    log_info "    Deployer PHASOR balance: $deployer_phasor"
 
-        # Add pool to MasterChef
-        cast send $masterchef \
-            "add(uint256,address)" \
-            $alloc_points \
-            $lp_pair \
+    if [ "$deployer_phasor" != "0" ]; then
+        # Lock 10,000 PHASOR for 1 year
+        local lock_amount=$(to_wei 10000 18)
+        local lock_end=$(($(cast block latest --json --rpc-url $RPC_URL | jq -r '.timestamp' | xargs printf "%d\n") + 365 * 86400))
+
+        log_info "    Approving PHASOR for VotingEscrow..."
+        cast send $phasor \
+            "approve(address,uint256)" \
+            $ve \
+            $lock_amount \
+            --private-key $DEPLOYER_KEY \
+            --rpc-url $RPC_URL > /dev/null 2>&1
+
+        log_info "    Creating vePHASOR lock..."
+        cast send $ve \
+            "createLock(uint256,uint256)" \
+            $lock_amount \
+            $lock_end \
             --private-key $DEPLOYER_KEY \
             --rpc-url $RPC_URL > /dev/null 2>&1 || {
-                log_error "Failed to add $pair_name pool"
-                continue
+                log_error "    Failed to create vePHASOR lock"
             }
 
-        # Store LP pair address for later use
-        ADDRESSES["LP_$pair_name"]=$lp_pair
+        # Check veNFT was created
+        local ve_balance=$(cast call $ve "balanceOf(address)(uint256)" $DEPLOYER_ADDR --rpc-url $RPC_URL)
+        if [ "$ve_balance" != "0" ]; then
+            log_success "    Created vePHASOR lock (tokenId: 1)"
+        fi
+    fi
 
-        log_success "    Pool $pool_id: $pair_name ($lp_pair)"
-        pool_id=$((pool_id + 1))
-    done
+    # Stake LP tokens with ve-boost
+    log_info "  Staking LP tokens with ve-boost..."
+    local deployer_lp_balance_raw=$(cast call $wmon_usdc_lp "balanceOf(address)(uint256)" $DEPLOYER_ADDR --rpc-url $RPC_URL)
+    # Clean the output - extract first number only (cast outputs "123456 1.23e5" format)
+    local deployer_lp_balance=$(echo "$deployer_lp_balance_raw" | tr -d '[]' | awk '{print $1}')
 
-    log_success "Farming pools configured: $pool_id pools added"
-
-    # Stake some LP tokens from deployer
-    log_info "  Staking LP tokens from deployer..."
-
-    # Stake in WMON-USDC pool (pool ID 0)
-    local wmon_usdc_lp="${ADDRESSES[LP_WMON-USDC]}"
-    local deployer_lp_balance=$(cast call $wmon_usdc_lp "balanceOf(address)(uint256)" $DEPLOYER_ADDR --rpc-url $RPC_URL)
-
-    if [ "$deployer_lp_balance" != "0" ]; then
-        # Stake 50% of LP tokens
-        local stake_amount=$(echo "$deployer_lp_balance / 2" | bc)
+    if [ "$deployer_lp_balance" != "0" ] && [ -n "$deployer_lp_balance" ]; then
+        # Stake 50% of LP tokens with veNFT boost
+        # Use shell arithmetic for integer division (works for numbers up to ~9 quintillion)
+        local stake_amount=$((deployer_lp_balance / 2))
 
         cast send $wmon_usdc_lp \
             "approve(address,uint256)" \
-            $masterchef \
+            $staking \
             $stake_amount \
             --private-key $DEPLOYER_KEY \
             --rpc-url $RPC_URL > /dev/null 2>&1
 
-        cast send $masterchef \
-            "deposit(uint256,uint256)" \
-            0 \
+        cast send $staking \
+            "stake(uint256,uint256)" \
             $stake_amount \
+            1 \
             --private-key $DEPLOYER_KEY \
-            --rpc-url $RPC_URL > /dev/null 2>&1
+            --rpc-url $RPC_URL > /dev/null 2>&1 || {
+                log_error "    Failed to stake LP tokens"
+            }
 
-        log_success "    Staked LP tokens in WMON-USDC farm"
+        log_success "    Staked LP tokens with veNFT boost"
     fi
 
-    log_success "Farming setup complete"
+    # Distribute initial rewards
+    log_info "  Distributing initial rewards..."
+    cast send $distributor \
+        "distribute()" \
+        --private-key $DEPLOYER_KEY \
+        --rpc-url $RPC_URL > /dev/null 2>&1 || {
+            log_error "    Failed to distribute rewards"
+        }
+    log_success "    Initial rewards distributed"
+
+    log_success "Staking system setup complete"
 }
 
 # ============================================================================
@@ -426,40 +467,45 @@ setup_test_launches() {
     # We'll create mock sale tokens for the launches
     # Deploy 3 test tokens for different launch scenarios
 
-    log_info "  Deploying test sale tokens..."
+    log_info "  Deploying test sale token..."
 
-    # Deploy TestToken1 - for active sale
-    local test_token1=$(cast send --create \
+    # Deploy a fresh ERC20 token for test launches (10 trillion supply with 6 decimals = 10M tokens)
+    # Options must come BEFORE --create subcommand
+    local test_token1=$(cast send \
         --private-key $DEPLOYER_KEY \
         --rpc-url $RPC_URL \
         --json \
-        "$(cat packages/core/out/MockUSDC.sol/MockUSDC.json | jq -r '.bytecode.object')" \
+        --create "$(cat out/MockUSDC.sol/MockUSDC.json | jq -r '.bytecode.object')" \
+        "constructor(uint256)" 10000000000000 \
         2>/dev/null | jq -r '.contractAddress')
 
     if [ -z "$test_token1" ] || [ "$test_token1" = "null" ]; then
         # Fallback: use FOLKS as a test token (deployer has plenty)
-        log_info "  Using FOLKS token for test launches..."
+        log_error "  Failed to deploy test token, using FOLKS as fallback..."
         test_token1="${ADDRESSES[FOLKS]}"
+    else
+        log_success "  Test token deployed: $test_token1"
     fi
 
     # Get current block timestamp
     local current_time=$(cast block latest --json --rpc-url $RPC_URL | jq -r '.timestamp' | xargs printf "%d\n")
 
     # =========================================================================
-    # Launch 1: Active Sale (started, not ended)
+    # Launch 1: Active Sale (starts in 120 seconds, then we advance time)
     # =========================================================================
     log_info "  Creating Launch 1: Active Sale..."
 
     local sale1_amount=$(to_wei 100000 6)  # 100k tokens
     local liquidity1_amount=$(to_wei 10000 6)  # 10k for liquidity
-    local start1=$((current_time - 3600))  # Started 1 hour ago
+    local start1=$((current_time + 120))   # Starts in 120 seconds (buffer for tx execution)
     local end1=$((current_time + 86400))   # Ends in 24 hours
 
-    # Approve tokens
+    # Approve tokens (use shell arithmetic for addition)
+    local approve1_amount=$((sale1_amount + liquidity1_amount))
     cast send $test_token1 \
         "approve(address,uint256)" \
         $launchpad \
-        $(echo "$sale1_amount + $liquidity1_amount" | bc) \
+        $approve1_amount \
         --private-key $DEPLOYER_KEY \
         --rpc-url $RPC_URL > /dev/null 2>&1
 
@@ -470,14 +516,19 @@ setup_test_launches() {
         "($test_token1,0x0000000000000000000000000000000000000000,$sale1_amount,$liquidity1_amount,$start1,$end1,0,$(to_wei 100 18),0,0,3000)" \
         --private-key $DEPLOYER_KEY \
         --rpc-url $RPC_URL \
-        --json 2>/dev/null | jq -r '.logs[0].topics[1]' | cast --to-address 2>/dev/null)
+        --json 2>/dev/null | jq -r '.logs[0].topics[1]' | xargs cast parse-bytes32-address 2>/dev/null)
 
     if [ -n "$launch1" ] && [ "$launch1" != "null" ]; then
         ADDRESSES["Launch1"]=$launch1
-        log_success "    Launch 1 created: $launch1 (Active, 100 ETH hard cap)"
+        log_success "    Launch 1 created: $launch1 (100 ETH hard cap)"
 
-        # Have a trader commit to the active sale
-        log_info "    Adding test commitment..."
+        # Advance blockchain time past start time to make the sale active
+        log_info "    Advancing time to activate the sale..."
+        cast rpc evm_increaseTime 150 --rpc-url $RPC_URL > /dev/null 2>&1
+        cast rpc evm_mine --rpc-url $RPC_URL > /dev/null 2>&1
+
+        # Have traders commit to the now-active sale
+        log_info "    Adding test commitments..."
         cast send $launch1 \
             "commit(uint256)" \
             0 \
@@ -500,16 +551,20 @@ setup_test_launches() {
     # =========================================================================
     log_info "  Creating Launch 2: Upcoming Sale..."
 
+    # Refresh current time after time manipulation
+    local current_time2=$(cast block latest --json --rpc-url $RPC_URL | jq -r '.timestamp' | xargs printf "%d\n")
+
     local sale2_amount=$(to_wei 50000 6)   # 50k tokens
     local liquidity2_amount=$(to_wei 5000 6)  # 5k for liquidity
-    local start2=$((current_time + 3600))   # Starts in 1 hour
-    local end2=$((current_time + 172800))   # Ends in 48 hours
+    local start2=$((current_time2 + 3600))   # Starts in 1 hour
+    local end2=$((current_time2 + 172800))   # Ends in 48 hours
 
-    # Approve tokens
+    # Approve tokens (use shell arithmetic for addition)
+    local approve2_amount=$((sale2_amount + liquidity2_amount))
     cast send $test_token1 \
         "approve(address,uint256)" \
         $launchpad \
-        $(echo "$sale2_amount + $liquidity2_amount" | bc) \
+        $approve2_amount \
         --private-key $DEPLOYER_KEY \
         --rpc-url $RPC_URL > /dev/null 2>&1
 
@@ -518,7 +573,7 @@ setup_test_launches() {
         "($test_token1,0x0000000000000000000000000000000000000000,$sale2_amount,$liquidity2_amount,$start2,$end2,$(to_wei 10 18),$(to_wei 50 18),0,0,3000)" \
         --private-key $DEPLOYER_KEY \
         --rpc-url $RPC_URL \
-        --json 2>/dev/null | jq -r '.logs[0].topics[1]' | cast --to-address 2>/dev/null)
+        --json 2>/dev/null | jq -r '.logs[0].topics[1]' | xargs cast parse-bytes32-address 2>/dev/null)
 
     if [ -n "$launch2" ] && [ "$launch2" != "null" ]; then
         ADDRESSES["Launch2"]=$launch2
@@ -532,18 +587,22 @@ setup_test_launches() {
     # =========================================================================
     log_info "  Creating Launch 3: Vesting Sale..."
 
+    # Refresh current time after previous time manipulation
+    local current_time3=$(cast block latest --json --rpc-url $RPC_URL | jq -r '.timestamp' | xargs printf "%d\n")
+
     local sale3_amount=$(to_wei 200000 6)  # 200k tokens
     local liquidity3_amount=$(to_wei 20000 6)  # 20k for liquidity
-    local start3=$((current_time - 1800))   # Started 30 min ago
-    local end3=$((current_time + 259200))   # Ends in 3 days
+    local start3=$((current_time3 + 300))   # Starts in 5 minutes
+    local end3=$((current_time3 + 259200))  # Ends in 3 days
     local vesting_duration=$((30 * 86400))  # 30 days
     local vesting_cliff=$((7 * 86400))      # 7 day cliff
 
-    # Approve tokens
+    # Approve tokens (use shell arithmetic for addition)
+    local approve3_amount=$((sale3_amount + liquidity3_amount))
     cast send $test_token1 \
         "approve(address,uint256)" \
         $launchpad \
-        $(echo "$sale3_amount + $liquidity3_amount" | bc) \
+        $approve3_amount \
         --private-key $DEPLOYER_KEY \
         --rpc-url $RPC_URL > /dev/null 2>&1
 
@@ -552,7 +611,7 @@ setup_test_launches() {
         "($test_token1,0x0000000000000000000000000000000000000000,$sale3_amount,$liquidity3_amount,$start3,$end3,0,0,$vesting_duration,$vesting_cliff,5000)" \
         --private-key $DEPLOYER_KEY \
         --rpc-url $RPC_URL \
-        --json 2>/dev/null | jq -r '.logs[0].topics[1]' | cast --to-address 2>/dev/null)
+        --json 2>/dev/null | jq -r '.logs[0].topics[1]' | xargs cast parse-bytes32-address 2>/dev/null)
 
     if [ -n "$launch3" ] && [ "$launch3" != "null" ]; then
         ADDRESSES["Launch3"]=$launch3
@@ -794,7 +853,9 @@ NEXT_PUBLIC_DEFAULT_WMON_ADDRESS=${ADDRESSES[WMON]}
 
 # PHASOR Ecosystem
 NEXT_PUBLIC_PHASOR_TOKEN_ADDRESS=${ADDRESSES[PhasorToken]}
-NEXT_PUBLIC_MASTERCHEF_ADDRESS=${ADDRESSES[MasterChef]}
+NEXT_PUBLIC_VOTING_ESCROW_ADDRESS=${ADDRESSES[VotingEscrow]}
+NEXT_PUBLIC_REWARDS_DISTRIBUTOR_ADDRESS=${ADDRESSES[RewardsDistributor]}
+NEXT_PUBLIC_STAKING_REWARDS_ADDRESS=${ADDRESSES[StakingRewards]}
 NEXT_PUBLIC_LAUNCHPAD_FACTORY_ADDRESS=${ADDRESSES[LaunchpadFactory]}
 
 # Subgraph URLs
@@ -1078,9 +1139,11 @@ print_summary() {
     echo -e "  Router:   ${ADDRESSES[Router]}"
     echo ""
     echo -e "${CYAN}${BOLD}PHASOR Ecosystem:${NC}"
-    echo -e "  PhasorToken:      ${ADDRESSES[PhasorToken]}"
-    echo -e "  MasterChef:       ${ADDRESSES[MasterChef]}"
-    echo -e "  LaunchpadFactory: ${ADDRESSES[LaunchpadFactory]}"
+    echo -e "  PhasorToken:         ${ADDRESSES[PhasorToken]}"
+    echo -e "  VotingEscrow:        ${ADDRESSES[VotingEscrow]}"
+    echo -e "  RewardsDistributor:  ${ADDRESSES[RewardsDistributor]}"
+    echo -e "  StakingRewards:      ${ADDRESSES[StakingRewards]}"
+    echo -e "  LaunchpadFactory:    ${ADDRESSES[LaunchpadFactory]}"
     echo ""
     echo -e "${CYAN}${BOLD}Tokens Deployed (8):${NC}"
     echo -e "  WMON:     ${ADDRESSES[WMON]} (18 decimals)"
@@ -1100,13 +1163,12 @@ print_summary() {
     echo -e "  WMON/SOL   - 300 WMON : 6,000 SOL"
     echo -e "  WMON/FOLKS - 200 WMON : 400k FOLKS"
     echo ""
-    echo -e "${CYAN}${BOLD}Farming Pools (MasterChef):${NC}"
-    echo -e "  Pool 0: WMON-USDC (40% rewards)"
-    echo -e "  Pool 1: WMON-USDT (20% rewards)"
-    echo -e "  Pool 2: WMON-WETH (20% rewards)"
-    echo -e "  Pool 3: WMON-WBTC (10% rewards)"
-    echo -e "  Pool 4: WMON-SOL  (5% rewards)"
-    echo -e "  Pool 5: WMON-FOLKS (5% rewards)"
+    echo -e "${CYAN}${BOLD}Staking System:${NC}"
+    echo -e "  StakingRewards Pool: WMON-USDC LP (100% allocation)"
+    echo -e "  Time Multiplier: 1x → 3x over 90 days"
+    echo -e "  ve-Boost: up to 2.5x based on vePHASOR"
+    echo -e "  Max Combined Boost: 7.5x (3x time × 2.5x ve)"
+    echo -e "  Weekly Emission: 700,000 PHASOR"
     echo ""
     echo -e "${CYAN}${BOLD}Test Fair Launches:${NC}"
     if [ -n "${ADDRESSES[Launch1]}" ]; then
@@ -1210,7 +1272,7 @@ main() {
     calculate_and_update_hash
     deploy_contracts
     create_liquidity_pools
-    setup_farming_pools
+    setup_staking_system
     setup_test_launches
     update_frontend_env
     update_token_list
