@@ -123,8 +123,60 @@ type Transaction = {
   token1Symbol: string;
 };
 
+interface TokenInfo {
+  id: string;
+  symbol: string;
+}
+
+interface PairInfo {
+  id: string;
+  token0: TokenInfo;
+  token1: TokenInfo;
+}
+
+interface SwapData {
+  id: string;
+  timestamp: string;
+  amount0In: string;
+  amount1In: string;
+  amount0Out: string;
+  amount1Out: string;
+  amountUSD: string;
+  to: string;
+  transaction: { id: string };
+  pair: PairInfo;
+}
+
+interface MintData {
+  id: string;
+  timestamp: string;
+  amount0: string;
+  amount1: string;
+  amountUSD: string;
+  to: string;
+  transaction: { id: string };
+  pair: PairInfo;
+}
+
+interface BurnData {
+  id: string;
+  timestamp: string;
+  amount0: string;
+  amount1: string;
+  amountUSD: string;
+  sender: string;
+  transaction: { id: string };
+  pair: PairInfo;
+}
+
+interface PoolTransactionsQueryResult {
+  swaps: SwapData[];
+  mints: MintData[];
+  burns: BurnData[];
+}
+
 export function PoolDetailTransactions({ poolAddress }: PoolDetailTransactionsProps) {
-  const { data, loading, error } = useQuery(GET_POOL_TRANSACTIONS, {
+  const { data, loading, error } = useQuery<PoolTransactionsQueryResult>(GET_POOL_TRANSACTIONS, {
     client: apolloClient,
     variables: { pairAddress: poolAddress.toLowerCase() },
   });

@@ -42,6 +42,13 @@ export const CONTRACTS = {
 
   // Wrapped MON (WMON) address
   WMON: (process.env.NEXT_PUBLIC_DEFAULT_WMON_ADDRESS || "0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701") as Address,
+
+  // PHASOR ecosystem contracts
+  PHASOR_TOKEN: process.env.NEXT_PUBLIC_PHASOR_TOKEN_ADDRESS as Address,
+  VOTING_ESCROW: process.env.NEXT_PUBLIC_VOTING_ESCROW_ADDRESS as Address,
+  STAKING_REWARDS: process.env.NEXT_PUBLIC_STAKING_REWARDS_ADDRESS as Address,
+  REWARDS_DISTRIBUTOR: process.env.NEXT_PUBLIC_REWARDS_DISTRIBUTOR_ADDRESS as Address,
+  LAUNCHPAD_FACTORY: process.env.NEXT_PUBLIC_LAUNCHPAD_FACTORY_ADDRESS as Address,
 } as const;
 
 // ============================================

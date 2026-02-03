@@ -101,3 +101,110 @@ export interface PortfolioHistoryPoint {
   timestamp: number;
   totalValueUSD: number;
 }
+
+// ============================================
+// VOTING ESCROW (vePHASOR) TYPES
+// ============================================
+
+export interface LockedBalance {
+  amount: bigint;
+  start: number;
+  end: number;
+}
+
+export interface VeNFT {
+  tokenId: bigint;
+  locked: LockedBalance;
+  votingPower: bigint;
+}
+
+// ============================================
+// STAKING TYPES
+// ============================================
+
+export interface StakeDeposit {
+  amount: bigint;
+  timestamp: number;
+}
+
+export interface UserStakeInfo {
+  balance: bigint;
+  effectiveBalance: bigint;
+  deposits: StakeDeposit[];
+  timeMultiplier: bigint;
+  veBoost: bigint;
+  totalMultiplier: bigint;
+  pendingRewards: bigint;
+  veTokenId: bigint;
+}
+
+export interface StakingPoolInfo {
+  stakingToken: Address;
+  rewardsToken: Address;
+  totalSupply: bigint;
+  totalEffectiveSupply: bigint;
+  rewardRate: bigint;
+  periodFinish: number;
+  rewardsDuration: number;
+}
+
+// ============================================
+// LAUNCHPAD TYPES
+// ============================================
+
+export interface SaleInfo {
+  saleToken: Address;
+  paymentToken: Address;
+  totalTokens: bigint;
+  startTime: number;
+  endTime: number;
+  softCap: bigint;
+  hardCap: bigint;
+  vestingDuration: number;
+  vestingCliff: number;
+}
+
+export interface SaleStatus {
+  totalRaised: bigint;
+  totalParticipants: number;
+  finalized: boolean;
+  cancelled: boolean;
+}
+
+export type LaunchState = 'pending' | 'active' | 'success' | 'failed' | 'finalized' | 'cancelled';
+
+export interface LaunchInfo {
+  address: Address;
+  creator: Address;
+  saleInfo: SaleInfo;
+  saleStatus: SaleStatus;
+  liquidityBps: number;
+  tokensForLiquidity: bigint;
+  state: LaunchState;
+  saleTokenSymbol?: string;
+  saleTokenName?: string;
+  saleTokenDecimals?: number;
+  paymentTokenSymbol?: string;
+  paymentTokenDecimals?: number;
+}
+
+export interface UserLaunchInfo {
+  commitment: bigint;
+  allocation: bigint;
+  claimed: boolean;
+  vestingWallet: Address | null;
+}
+
+export interface CreateLaunchParams {
+  saleToken: Address;
+  paymentToken: Address;
+  totalTokens: bigint;
+  tokensForLiquidity: bigint;
+  startTime: number;
+  endTime: number;
+  softCap: bigint;
+  hardCap: bigint;
+  vestingDuration: number;
+  vestingCliff: number;
+  liquidityBps: number;
+}
