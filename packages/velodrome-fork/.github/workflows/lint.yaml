@@ -1,0 +1,25 @@
+name: Lint
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  run-fmt:
+    runs-on: blacksmith-4vcpu-ubuntu-2204
+    
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      # Runs a single command using the runners shell
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.0.0
+
+      - name: Format
+        run: forge fmt --check
