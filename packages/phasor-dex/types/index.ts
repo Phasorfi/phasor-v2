@@ -103,13 +103,13 @@ export interface PortfolioHistoryPoint {
 }
 
 // ============================================
-// VOTING ESCROW (vePHASOR) TYPES
+// VOTING ESCROW (vePHASOR) TYPES - Velodrome V2
 // ============================================
 
 export interface LockedBalance {
   amount: bigint;
-  start: number;
   end: number;
+  isPermanent: boolean;
 }
 
 export interface VeNFT {
@@ -119,67 +119,63 @@ export interface VeNFT {
 }
 
 // ============================================
-// STAKING TYPES
+// STAKING TYPES (Velodrome Gauge)
 // ============================================
-
-export interface StakeDeposit {
-  amount: bigint;
-  timestamp: number;
-}
 
 export interface UserStakeInfo {
   balance: bigint;
-  effectiveBalance: bigint;
-  deposits: StakeDeposit[];
   timeMultiplier: bigint;
-  veBoost: bigint;
-  totalMultiplier: bigint;
   pendingRewards: bigint;
-  veTokenId: bigint;
+  firstStakeTime: number;
 }
 
 export interface StakingPoolInfo {
   stakingToken: Address;
-  rewardsToken: Address;
+  rewardToken: Address;
   totalSupply: bigint;
-  totalEffectiveSupply: bigint;
   rewardRate: bigint;
   periodFinish: number;
-  rewardsDuration: number;
+  duration: number;
+  rewardsLeft: bigint;
 }
 
 // ============================================
-// LAUNCHPAD TYPES
+// LAUNCHPAD TYPES (MISO Auctions)
 // ============================================
 
-export interface SaleInfo {
-  saleToken: Address;
-  paymentToken: Address;
+export type AuctionType = 1 | 2 | 3 | 4; // 1=Crowdsale, 2=Dutch, 3=Batch, 4=Hyperbolic
+
+export const AUCTION_TYPE_LABELS: Record<number, string> = {
+  1: "Crowdsale",
+  2: "Dutch Auction",
+  3: "Batch Auction",
+  4: "Hyperbolic Auction",
+};
+
+export interface AuctionInfo {
+  auctionToken: Address;
+  paymentCurrency: Address;
   totalTokens: bigint;
   startTime: number;
   endTime: number;
-  softCap: bigint;
-  hardCap: bigint;
-  vestingDuration: number;
-  vestingCliff: number;
+  auctionType: number;
+  goal: bigint; // Crowdsale goal (0 for other types)
 }
 
-export interface SaleStatus {
-  totalRaised: bigint;
-  totalParticipants: number;
+export interface AuctionStatus {
+  commitmentsTotal: bigint;
+  auctionSuccessful: boolean;
+  auctionEnded: boolean;
   finalized: boolean;
-  cancelled: boolean;
+  tokenPrice: bigint;
 }
 
-export type LaunchState = 'pending' | 'active' | 'success' | 'failed' | 'finalized' | 'cancelled';
+export type LaunchState = 'pending' | 'active' | 'success' | 'failed' | 'finalized';
 
 export interface LaunchInfo {
   address: Address;
-  creator: Address;
-  saleInfo: SaleInfo;
-  saleStatus: SaleStatus;
-  liquidityBps: number;
-  tokensForLiquidity: bigint;
+  auctionInfo: AuctionInfo;
+  auctionStatus: AuctionStatus;
   state: LaunchState;
   saleTokenSymbol?: string;
   saleTokenName?: string;
@@ -190,21 +186,10 @@ export interface LaunchInfo {
 
 export interface UserLaunchInfo {
   commitment: bigint;
-  allocation: bigint;
-  claimed: boolean;
-  vestingWallet: Address | null;
+  tokensClaimable: bigint;
+  claimed: bigint;
 }
 
-export interface CreateLaunchParams {
-  saleToken: Address;
-  paymentToken: Address;
-  totalTokens: bigint;
-  tokensForLiquidity: bigint;
-  startTime: number;
-  endTime: number;
-  softCap: bigint;
-  hardCap: bigint;
-  vestingDuration: number;
-  vestingCliff: number;
-  liquidityBps: number;
-}
+// Keep old names as aliases for gradual migration
+export type SaleInfo = AuctionInfo;
+export type SaleStatus = AuctionStatus;

@@ -35,7 +35,7 @@ export default function StakingPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-display font-bold">Staking</h1>
           <p className="text-muted-foreground mt-1">
-            Stake LP tokens to earn PHASOR rewards with time and ve-boost multipliers
+            Stake LP tokens to earn PHASOR rewards with time-based multipliers
           </p>
         </div>
 
@@ -61,7 +61,7 @@ export default function StakingPage() {
             <CardHeader className="pb-2">
               <CardDescription className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
-                Reward Rate
+                Rewards Left
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -69,7 +69,7 @@ export default function StakingPage() {
                 <Skeleton className="h-8 w-24" />
               ) : (
                 <p className="text-2xl font-bold">
-                  {formatNumber(poolInfo?.rewardRate ?? BigInt(0))}/s
+                  {formatNumber(poolInfo?.rewardsLeft ?? BigInt(0))} PHASOR
                 </p>
               )}
             </CardContent>

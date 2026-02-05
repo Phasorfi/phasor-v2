@@ -9,6 +9,7 @@ contract UniswapV2Factory is IUniswapV2Factory {
 
     mapping(address => mapping(address => address)) public getPair;
     address[] public allPairs;
+    mapping(address => bool) public isPool;
 
     event PairCreated(address indexed token0, address indexed token1, address pair, uint);
 
@@ -34,6 +35,7 @@ contract UniswapV2Factory is IUniswapV2Factory {
         getPair[token0][token1] = pair;
         getPair[token1][token0] = pair; // populate mapping in the reverse direction
         allPairs.push(pair);
+        isPool[pair] = true;
         emit PairCreated(token0, token1, pair, allPairs.length);
     }
 

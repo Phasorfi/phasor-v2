@@ -2,14 +2,14 @@
 
 import React from "react";
 import Link from "next/link";
-import { Clock, Users, TrendingUp, ExternalLink } from "lucide-react";
+import { Clock, TrendingUp, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Address, formatUnits } from "viem";
 import { useFairLaunch } from "@/hooks/useLaunchpad";
-import { LaunchState } from "@/types";
+import { LaunchState, AUCTION_TYPE_LABELS } from "@/types";
 
 interface LaunchCardProps {
   launchAddress: Address;
@@ -22,7 +22,6 @@ const STATE_COLORS: Record<LaunchState, string> = {
   success: "bg-blue-500/10 text-blue-500 border-blue-500/20",
   failed: "bg-red-500/10 text-red-500 border-red-500/20",
   finalized: "bg-purple-500/10 text-purple-500 border-purple-500/20",
-  cancelled: "bg-gray-500/10 text-gray-500 border-gray-500/20",
 };
 
 const STATE_LABELS: Record<LaunchState, string> = {
@@ -31,7 +30,6 @@ const STATE_LABELS: Record<LaunchState, string> = {
   success: "Successful",
   failed: "Failed",
   finalized: "Finalized",
-  cancelled: "Cancelled",
 };
 
 export function LaunchCard({ launchAddress, filterState }: LaunchCardProps) {
@@ -45,23 +43,21 @@ export function LaunchCard({ launchAddress, filterState }: LaunchCardProps) {
   if (filterState) {
     if (filterState === "active" && launchInfo.state !== "active") return null;
     if (filterState === "pending" && launchInfo.state !== "pending") return null;
-    if (filterState === "ended" && !["success", "failed", "finalized", "cancelled"].includes(launchInfo.state)) return null;
+    if (filterState === "ended" && !["success", "failed", "finalized"].includes(launchInfo.state)) return null;
   }
 
-  const { saleInfo, saleStatus, state } = launchInfo;
-  const progress = saleInfo.hardCap > BigInt(0)
-    ? Number((saleStatus.totalRaised * BigInt(100)) / saleInfo.hardCap)
-    : 0;
+  const { auctionInfo, auctionStatus, state } = launchInfo;
 
-  const formatTime = (timestamp: number): string => {
-    const date = new Date(timestamp * 1000);
-    return date.toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-  };
+  // For Crowdsale, show progress toward goal; otherwise show total committed
+  const hasGoal = auctionInfo.auctionType === 1 && auctionInfo.goal > BigInt(0);
+  const progress = hasGoal
+    ? Math.min(Number((auctionStatus.commitmentsTotal * BigInt(100)) / auctionInfo.goal), 100)
+    : 0;
 
   const getTimeRemaining = (): string => {
     const now = Math.floor(Date.now() / 1000);
     if (state === "pending") {
-      const diff = saleInfo.startTime - now;
+      const diff = auctionInfo.startTime - now;
       if (diff <= 0) return "Starting...";
       const hours = Math.floor(diff / 3600);
       const mins = Math.floor((diff % 3600) / 60);
@@ -69,7 +65,7 @@ export function LaunchCard({ launchAddress, filterState }: LaunchCardProps) {
       return `${hours}h ${mins}m`;
     }
     if (state === "active") {
-      const diff = saleInfo.endTime - now;
+      const diff = auctionInfo.endTime - now;
       if (diff <= 0) return "Ending...";
       const hours = Math.floor(diff / 3600);
       const mins = Math.floor((diff % 3600) / 60);
@@ -86,7 +82,7 @@ export function LaunchCard({ launchAddress, filterState }: LaunchCardProps) {
           <div className="flex items-start justify-between">
             <div>
               <CardTitle className="text-lg flex items-center gap-2">
-                Token Sale
+                {AUCTION_TYPE_LABELS[auctionInfo.auctionType] ?? "Auction"}
                 <ExternalLink className="h-4 w-4 text-muted-foreground" />
               </CardTitle>
               <p className="text-sm text-muted-foreground mt-1">
@@ -99,31 +95,29 @@ export function LaunchCard({ launchAddress, filterState }: LaunchCardProps) {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Progress */}
+          {/* Progress / Total Committed */}
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Raised</span>
+              <span className="text-muted-foreground">Total Committed</span>
               <span className="font-medium">
-                {parseFloat(formatUnits(saleStatus.totalRaised, 18)).toFixed(2)} / {parseFloat(formatUnits(saleInfo.hardCap, 18)).toFixed(2)}
+                {parseFloat(formatUnits(auctionStatus.commitmentsTotal, 18)).toFixed(4)}
+                {hasGoal && ` / ${parseFloat(formatUnits(auctionInfo.goal, 18)).toFixed(2)}`}
               </span>
             </div>
-            <Progress value={progress} className="h-2" />
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Soft cap: {parseFloat(formatUnits(saleInfo.softCap, 18)).toFixed(0)}</span>
-              <span>{progress.toFixed(1)}%</span>
-            </div>
+            {hasGoal && <Progress value={progress} className="h-2" />}
           </div>
 
           {/* Stats */}
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <span>{saleStatus.totalParticipants} participants</span>
-            </div>
-            <div className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              <span>{parseFloat(formatUnits(saleInfo.totalTokens, 18)).toFixed(0)} tokens</span>
+              <span>{parseFloat(formatUnits(auctionInfo.totalTokens, 18)).toFixed(0)} tokens</span>
             </div>
+            {auctionStatus.tokenPrice > BigInt(0) && (
+              <div className="text-muted-foreground">
+                Price: {parseFloat(formatUnits(auctionStatus.tokenPrice, 18)).toFixed(6)}
+              </div>
+            )}
           </div>
 
           {/* Time */}

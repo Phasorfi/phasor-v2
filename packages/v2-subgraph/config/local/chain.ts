@@ -1,34 +1,34 @@
 import { Address, BigDecimal, BigInt } from '@graphprotocol/graph-ts/index'
 
 // Monad Testnet - Factory address
-export const FACTORY_ADDRESS = '0x8a791620dd6260079bf849dc5567adc3f2fdc318'
+export const FACTORY_ADDRESS = '0xa85233c63b9ee964add6f2cffe00fd84eb32338f'
 
 // WMON (Wrapped MON) - Reference token for pricing
-export const REFERENCE_TOKEN = '0xa513e6e4b8f2a923d98304ec87f64353c4d5c853'
+export const REFERENCE_TOKEN = '0x59b670e9fa9d0a427751af201d676719a970857b'
 
 // Stable token pairs for USD pricing (WMON-USDC, WMON-USDT)
 // These pairs are used to calculate Bundle.ethPrice for USD pricing
 export const STABLE_TOKEN_PAIRS: string[] = [
-  '0x99c73492faf797604086506128dc0c6f3e95332b', // WMON-USDC
-  '0xe7fa20791a975d5b4d12ac2082b2c02e0b1d6c22', // WMON-USDT
+  '0xa09c47571c1a04fedd30b13fd5db9aa021c4c2fe', // WMON-USDC
+  '0xf1aaa954fa6ff61bab8b9d0ea6bc0b2d130a873d', // WMON-USDT
 ]
 
 // Token whitelist - from tokenlist.json
 // Tokens that should contribute to tracked volume and liquidity
 export const WHITELIST: string[] = [
-  '0xa513e6e4b8f2a923d98304ec87f64353c4d5c853', // WMON - Wrapped Monad
-  '0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9', // USDC
-  '0xdc64a140aa3e981100a9beca4e685f962f0cf6c9', // USDT
-  '0x5fc8d32690cc91d4c39d9d3abcbd16989f875707', // WBTC
-  '0x0165878a594ca255338adfa4d48449f69242eb8f', // WETH
-  '0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0', // SOL
-  '0x5fbdb2315678afecb367f032d93f642f64180aa3', // FOLKS
+  '0x59b670e9fa9d0a427751af201d676719a970857b', // WMON - Wrapped Monad
+  '0x9a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae', // USDC
+  '0x68b1d87f95878fe05b998f19b66f4baba5de1aed', // USDT
+  '0x3aa5ebb10dc797cac828524e59a333d0a371443c', // WBTC
+  '0xc6e7df5e7b4f2a278906862b61205850344d4e7d', // WETH
+  '0x0b306bf915c4d645ff596e518faf3f9669b97016', // SOL
+  '0x0165878a594ca255338adfa4d48449f69242eb8f', // FOLKS
 ]
 
 // Stablecoins for USD pricing
 export const STABLECOINS = [
-  '0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9', // USDC
-  '0xdc64a140aa3e981100a9beca4e685f962f0cf6c9', // USDT
+  '0x9a9f2ccfde556a7e9ff0848998aa4a0cfd8863ae', // USDC
+  '0x68b1d87f95878fe05b998f19b66f4baba5de1aed', // USDT
 ]
 
 // minimum liquidity required to count towards tracked volume for pairs with small # of Lps
@@ -46,7 +46,7 @@ export class TokenDefinition {
 
 export const STATIC_TOKEN_DEFINITIONS: TokenDefinition[] = [
   {
-    address: Address.fromString('0xa513e6e4b8f2a923d98304ec87f64353c4d5c853'),
+    address: Address.fromString('0x59b670e9fa9d0a427751af201d676719a970857b'),
     symbol: 'WMON',
     name: 'Wrapped Monad',
     decimals: BigInt.fromI32(18),

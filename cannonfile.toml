@@ -5,16 +5,119 @@ keywords = ["DEX", "Monad"]
 
 privateSourceCode = false
 
-# Main settings for Factory and Router
+# ============================================================================
+# Configuration Variables
+# ============================================================================
+# These addresses should be updated before deployment:
+# - deployer: EOA that pays for deployment (will transfer ownership after)
+# - safe: Multisig address that will own all protocol contracts
+# - WMON: Wrapped MON address on the target network
+
 [var.main]
-owner = "0x2022e2849b156A125EDB4806FA103d743f74cc74"
+# Deployer EOA (pays gas, receives initial ownership, then transfers to safe)
+deployer = "0x2022e2849b156A125EDB4806FA103d743f74cc74"
+# Multisig (final owner of all protocol contracts)
 safe = "0xB8C6C815B2B93394C21f944c5A061872B2765C75"
+# Existing WMON on Monad testnet
 WMON = "0xbbdbCfEf20072142e233F61eD26005c7d2983C5f"
+
+# ============================================================================
+# Core DEX Contracts
+# ============================================================================
 
 [deploy.UniswapV2Factory]
 artifact = "packages/core/contracts/UniswapV2Factory.sol:UniswapV2Factory"
-args = ["<%= settings.safe %>"]
+args = ["<%= settings.deployer %>"]  # Deployer initially, transferred later
 
 [deploy.UniswapV2Router]
 artifact = "UniswapV2Router02"
 args = ["<%= contracts.UniswapV2Factory.address %>", "<%= settings.WMON %>"]
+depends = ["deploy.UniswapV2Factory"]
+
+# ============================================================================
+# PHASOR Token Ecosystem
+# ============================================================================
+
+# Native PHASOR token - ERC20 with mint capability for rewards
+[deploy.PhasorToken]
+artifact = "packages/phasor-contracts/contracts/token/PhasorToken.sol:PhasorToken"
+
+# VotingEscrow (vePHASOR) - Time-locked PHASOR for governance and boost
+[deploy.VotingEscrow]
+artifact = "packages/phasor-contracts/contracts/governance/VotingEscrow.sol:VotingEscrow"
+args = ["<%= contracts.PhasorToken.address %>"]
+depends = ["deploy.PhasorToken"]
+
+# RewardsDistributor - Weekly PHASOR emissions to staking pools
+[deploy.RewardsDistributor]
+artifact = "packages/phasor-contracts/contracts/staking/RewardsDistributor.sol:RewardsDistributor"
+args = ["<%= contracts.PhasorToken.address %>"]
+depends = ["deploy.PhasorToken"]
+
+# StakingRewards - Time-weighted LP staking with ve-boost
+[deploy.StakingRewards]
+artifact = "packages/phasor-contracts/contracts/staking/StakingRewards.sol:StakingRewards"
+args = [
+    "<%= contracts.PhasorToken.address %>",
+    "<%= contracts.VotingEscrow.address %>",
+    "<%= contracts.RewardsDistributor.address %>"
+]
+depends = ["deploy.VotingEscrow", "deploy.RewardsDistributor"]
+
+# ============================================================================
+# Launchpad Ecosystem
+# ============================================================================
+
+# FairLaunch template (implementation contract for cloning)
+[deploy.FairLaunchTemplate]
+artifact = "packages/phasor-contracts/contracts/launchpad/FairLaunch.sol:FairLaunch"
+depends = ["deploy.UniswapV2Router"]
+
+# LaunchpadFactory - Creates FairLaunch sales via minimal proxy pattern
+[deploy.LaunchpadFactory]
+artifact = "packages/phasor-contracts/contracts/launchpad/LaunchpadFactory.sol:LaunchpadFactory"
+args = [
+    "<%= contracts.UniswapV2Factory.address %>",
+    "<%= contracts.UniswapV2Router.address %>",
+    "<%= settings.WMON %>",
+    "<%= contracts.FairLaunchTemplate.address %>",
+    "<%= settings.safe %>",  # Platform fees go to multisig
+    "200"                    # 2% platform fee (200 basis points)
+]
+depends = ["deploy.FairLaunchTemplate"]
+
+# ============================================================================
+# Ownership Transfers (EOA -> Multisig)
+# ============================================================================
+# After deployment, ownership is transferred from deployer EOA to multisig.
+# This allows gas-efficient deployment while maintaining multisig security.
+
+# Transfer Factory feeToSetter to multisig
+[invoke.transfer_factory_owner]
+target = ["UniswapV2Factory"]
+func = "setFeeToSetter"
+args = ["<%= settings.safe %>"]
+depends = ["deploy.UniswapV2Factory"]
+
+# Transfer PhasorToken ownership to RewardsDistributor (required for minting)
+# Note: RewardsDistributor must own PhasorToken to mint weekly rewards
+[invoke.transfer_phasor_to_distributor]
+target = ["PhasorToken"]
+func = "transferOwnership"
+args = ["<%= contracts.RewardsDistributor.address %>"]
+depends = ["deploy.RewardsDistributor"]
+
+# Transfer RewardsDistributor ownership to multisig
+# This must happen AFTER PhasorToken ownership is transferred
+[invoke.transfer_distributor_owner]
+target = ["RewardsDistributor"]
+func = "transferOwnership"
+args = ["<%= settings.safe %>"]
+depends = ["invoke.transfer_phasor_to_distributor"]
+
+# Transfer LaunchpadFactory ownership to multisig
+[invoke.transfer_launchpad_owner]
+target = ["LaunchpadFactory"]
+func = "transferOwnership"
+args = ["<%= settings.safe %>"]
+depends = ["deploy.LaunchpadFactory"]

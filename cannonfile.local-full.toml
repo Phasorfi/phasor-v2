@@ -1,7 +1,7 @@
 name = "phasor-v2-local-full"
 version = "<%= package.version %>"
-description = "Full local deployment with 12 test tokens for DEX testing"
-keywords = ["DEX", "Monad", "Testing"]
+description = "Full local deployment with Velodrome fork ve(3,3) system"
+keywords = ["DEX", "Monad", "Testing", "Velodrome"]
 
 privateSourceCode = false
 
@@ -9,9 +9,13 @@ privateSourceCode = false
 [var.main]
 owner = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 
+# ============================================================================
+# Core DEX (Uniswap V2)
+# ============================================================================
+
 # Deploy WMON (Wrapped Monad) - WETH9 implementation
 [deploy.WMON]
-artifact = "WETH9"
+artifact = "packages/periphery/contracts/test/WETH9.sol:WETH9"
 
 [deploy.UniswapV2Factory]
 artifact = "packages/core/contracts/UniswapV2Factory.sol:UniswapV2Factory"
@@ -20,6 +24,10 @@ args = ["<%= settings.owner %>"]
 [deploy.UniswapV2Router]
 artifact = "UniswapV2Router02"
 args = ["<%= contracts.UniswapV2Factory.address %>", "<%= contracts.WMON.address %>"]
+
+# ============================================================================
+# Test Tokens
+# ============================================================================
 
 # Stablecoins (6 decimals, large supply for realistic liquidity pools)
 [deploy.USDC]
@@ -32,7 +40,7 @@ args = ["<%= BigInt(10000000000000) %>"]  # 10,000,000 * 10^6
 
 # Volatile assets with custom decimals
 [deploy.WETH]
-artifact = "WETH9"
+artifact = "packages/periphery/contracts/test/WETH9.sol:WETH9"
 
 [deploy.WBTC]
 artifact = "packages/core/contracts/test/MockWBTC.sol:MockWBTC"
@@ -42,73 +50,239 @@ args = ["<%= BigInt(1000000000000) %>"]  # 10,000 * 10^8
 artifact = "packages/core/contracts/test/MockSOL.sol:MockSOL"
 args = ["<%= BigInt(10000000000000) %>"]  # 10,000 * 10^9
 
-# DeFi token (6 decimals, large supply for realistic liquidity)
+# DeFi token (6 decimals)
 [deploy.FOLKS]
 artifact = "packages/core/contracts/test/MockFOLKS.sol:MockFOLKS"
 args = ["<%= BigInt(5000000000000) %>"]  # 5,000,000 * 10^6
 
-# Note: Generic ERC20 tokens (DAK, CHOG, YAKI, TKN1, TKN2) can be added manually after deployment if needed
-# For now, we deploy 7 core tokens with different decimal precisions which provides good test coverage
-
 # ============================================================================
-# PHASOR Token Ecosystem
+# Velodrome Fork - ve(3,3) System
 # ============================================================================
 
-# Native PHASOR token
-[deploy.PhasorToken]
-artifact = "packages/phasor-contracts/contracts/token/PhasorToken.sol:PhasorToken"
+# PHASOR Token (rebranded from Velo)
+[deploy.Phasor]
+artifact = "packages/velodrome-fork/contracts/Phasor.sol:Phasor"
+
+# ERC2771 Forwarder for meta-transactions
+[deploy.Forwarder]
+artifact = "packages/velodrome-fork/contracts/VeloForwarder.sol:VeloForwarder"
 
 # ============================================================================
-# Staking System (VotingEscrow + StakingRewards + RewardsDistributor)
+# Velodrome Libraries (must be deployed before contracts that use them)
 # ============================================================================
 
-# VotingEscrow (vePHASOR) - Time-locked PHASOR for governance and boost
-[deploy.VotingEscrow]
-artifact = "packages/phasor-contracts/contracts/governance/VotingEscrow.sol:VotingEscrow"
-args = ["<%= contracts.PhasorToken.address %>"]
-depends = ["deploy.PhasorToken"]
+[deploy.BalanceLogicLibrary]
+artifact = "packages/velodrome-fork/contracts/libraries/BalanceLogicLibrary.sol:BalanceLogicLibrary"
+overrides = { gasLimit = "5000000" }
 
-# RewardsDistributor - Weekly PHASOR emissions to staking pools
-[deploy.RewardsDistributor]
-artifact = "packages/phasor-contracts/contracts/staking/RewardsDistributor.sol:RewardsDistributor"
-args = ["<%= contracts.PhasorToken.address %>"]
-depends = ["deploy.PhasorToken"]
+[deploy.DelegationLogicLibrary]
+artifact = "packages/velodrome-fork/contracts/libraries/DelegationLogicLibrary.sol:DelegationLogicLibrary"
+overrides = { gasLimit = "5000000" }
 
-# StakingRewards - Time-weighted LP staking with ve-boost
-[deploy.StakingRewards]
-artifact = "packages/phasor-contracts/contracts/staking/StakingRewards.sol:StakingRewards"
+[deploy.PerlinNoise]
+artifact = "packages/velodrome-fork/contracts/art/PerlinNoise.sol:PerlinNoise"
+overrides = { gasLimit = "5000000" }
+
+[deploy.Trig]
+artifact = "packages/velodrome-fork/contracts/art/Trig.sol:Trig"
+overrides = { gasLimit = "5000000" }
+
+# ============================================================================
+# Velodrome Factories
+# ============================================================================
+
+[deploy.GaugeFactory]
+artifact = "packages/velodrome-fork/contracts/factories/GaugeFactory.sol:GaugeFactory"
+
+[deploy.VotingRewardsFactory]
+artifact = "packages/velodrome-fork/contracts/factories/VotingRewardsFactory.sol:VotingRewardsFactory"
+
+libraries.BalanceLogicLibrary = "<%= contracts.BalanceLogicLibrary.address %>"
+
+[deploy.ManagedRewardsFactory]
+artifact = "packages/velodrome-fork/contracts/factories/ManagedRewardsFactory.sol:ManagedRewardsFactory"
+
+libraries.BalanceLogicLibrary = "<%= contracts.BalanceLogicLibrary.address %>"
+
+# Factory Registry - registers pool/gauge/reward factory combinations
+[deploy.FactoryRegistry]
+artifact = "packages/velodrome-fork/contracts/factories/FactoryRegistry.sol:FactoryRegistry"
 args = [
-    "<%= contracts.PhasorToken.address %>",
+    "<%= contracts.UniswapV2Factory.address %>",
+    "<%= contracts.VotingRewardsFactory.address %>",
+    "<%= contracts.GaugeFactory.address %>",
+    "<%= contracts.ManagedRewardsFactory.address %>"
+]
+
+
+# ============================================================================
+# Velodrome Core Contracts
+# ============================================================================
+
+[deploy.VotingEscrow]
+artifact = "packages/velodrome-fork/contracts/VotingEscrow.sol:VotingEscrow"
+args = [
+    "<%= contracts.Forwarder.address %>",
+    "<%= contracts.Phasor.address %>",
+    "<%= contracts.FactoryRegistry.address %>"
+]
+
+libraries.BalanceLogicLibrary = "<%= contracts.BalanceLogicLibrary.address %>"
+libraries.DelegationLogicLibrary = "<%= contracts.DelegationLogicLibrary.address %>"
+
+[deploy.VeArtProxy]
+artifact = "packages/velodrome-fork/contracts/VeArtProxy.sol:VeArtProxy"
+args = ["<%= contracts.VotingEscrow.address %>"]
+
+libraries.PerlinNoise = "<%= contracts.PerlinNoise.address %>"
+libraries.Trig = "<%= contracts.Trig.address %>"
+
+[deploy.Voter]
+artifact = "packages/velodrome-fork/contracts/Voter.sol:Voter"
+args = [
+    "<%= contracts.Forwarder.address %>",
+    "<%= contracts.VotingEscrow.address %>",
+    "<%= contracts.FactoryRegistry.address %>"
+]
+
+
+[deploy.RewardsDistributor]
+artifact = "packages/velodrome-fork/contracts/RewardsDistributor.sol:RewardsDistributor"
+args = ["<%= contracts.VotingEscrow.address %>"]
+
+
+[deploy.Minter]
+artifact = "packages/velodrome-fork/contracts/Minter.sol:Minter"
+args = [
+    "<%= contracts.Voter.address %>",
     "<%= contracts.VotingEscrow.address %>",
     "<%= contracts.RewardsDistributor.address %>"
 ]
-depends = ["deploy.VotingEscrow", "deploy.RewardsDistributor"]
 
-# Transfer PhasorToken ownership to RewardsDistributor so it can mint rewards
-[invoke.transfer_phasor_ownership]
-target = ["PhasorToken"]
-func = "transferOwnership"
-args = ["<%= contracts.RewardsDistributor.address %>"]
-depends = ["deploy.RewardsDistributor"]
 
 # ============================================================================
-# Launchpad Ecosystem
+# Velodrome Configuration
 # ============================================================================
 
-# FairLaunch template (for cloning)
-[deploy.FairLaunchTemplate]
-artifact = "packages/phasor-contracts/contracts/launchpad/FairLaunch.sol:FairLaunch"
-depends = ["deploy.UniswapV2Router"]
+[invoke.set_art_proxy]
+target = ["VotingEscrow"]
+func = "setArtProxy"
+args = ["<%= contracts.VeArtProxy.address %>"]
 
-# LaunchpadFactory
-[deploy.LaunchpadFactory]
-artifact = "packages/phasor-contracts/contracts/launchpad/LaunchpadFactory.sol:LaunchpadFactory"
+
+[invoke.set_ve_voter]
+target = ["VotingEscrow"]
+func = "setVoterAndDistributor"
+args = ["<%= contracts.Voter.address %>", "<%= contracts.RewardsDistributor.address %>"]
+
+
+# Mint initial PHASOR supply to deployer (before minter changes to Minter contract)
+[invoke.mint_initial_phasor]
+target = ["Phasor"]
+func = "mint"
+args = ["<%= settings.owner %>", "100000000000000000000000000"]
+
+# Initialize Voter: whitelist tokens and set Minter as the minter
+[invoke.initialize_voter]
+target = ["Voter"]
+func = "initialize"
 args = [
-    "<%= contracts.UniswapV2Factory.address %>",
-    "<%= contracts.UniswapV2Router.address %>",
-    "<%= contracts.WMON.address %>",
-    "<%= contracts.FairLaunchTemplate.address %>",
-    "<%= settings.owner %>",
-    "200"
+    ["<%= contracts.WMON.address %>", "<%= contracts.USDC.address %>", "<%= contracts.USDT.address %>", "<%= contracts.WBTC.address %>", "<%= contracts.SOL.address %>", "<%= contracts.FOLKS.address %>", "<%= contracts.Phasor.address %>"],
+    "<%= contracts.Minter.address %>"
 ]
-depends = ["deploy.FairLaunchTemplate"]
+
+[invoke.set_phasor_minter]
+target = ["Phasor"]
+func = "setMinter"
+args = ["<%= contracts.Minter.address %>"]
+depends = ["invoke.mint_initial_phasor"]
+
+[invoke.set_rewards_minter]
+target = ["RewardsDistributor"]
+func = "setMinter"
+args = ["<%= contracts.Minter.address %>"]
+
+
+# ============================================================================
+# MISO Launchpad (SushiSwap Fork with ve-gating)
+# ============================================================================
+
+# Access Controls - manages permissions for MISO ecosystem
+[deploy.MISOAccessControls]
+artifact = "packages/miso-fork/contracts/Access/MISOAccessControls.sol:MISOAccessControls"
+
+# Clone Factory (BoringFactory pattern for deploying auction clones)
+[deploy.BoringFactory]
+artifact = "packages/miso-fork/contracts/Utils/BoringFactory.sol:BoringFactory"
+
+# Auction Templates
+[deploy.BatchAuction]
+artifact = "packages/miso-fork/contracts/Auctions/BatchAuction.sol:BatchAuction"
+
+[deploy.Crowdsale]
+artifact = "packages/miso-fork/contracts/Auctions/Crowdsale.sol:Crowdsale"
+
+[deploy.DutchAuction]
+artifact = "packages/miso-fork/contracts/Auctions/DutchAuction.sol:DutchAuction"
+
+[deploy.HyperbolicAuction]
+artifact = "packages/miso-fork/contracts/Auctions/HyperbolicAuction.sol:HyperbolicAuction"
+
+# Post-Auction Liquidity Launcher - uses YOUR DEX Factory/Router
+[deploy.PostAuctionLauncher]
+artifact = "packages/miso-fork/contracts/Liquidity/PostAuctionLauncher.sol:PostAuctionLauncher"
+args = ["<%= contracts.WMON.address %>"]
+
+# Market Factory - creates auction clones
+[deploy.MISOMarket]
+artifact = "packages/miso-fork/contracts/MISOMarket.sol:MISOMarket"
+
+# Liquidity Launcher Factory
+[deploy.MISOLauncher]
+artifact = "packages/miso-fork/contracts/MISOLauncher.sol:MISOLauncher"
+
+# ============================================================================
+# MISO Initialization (ordered via depends flags)
+# ============================================================================
+
+# Step 1: Initialize access controls - sets deployer as DEFAULT_ADMIN_ROLE
+[invoke.init_miso_access]
+target = ["MISOAccessControls"]
+func = "initAccessControls"
+args = ["<%= settings.owner %>"]
+
+# Step 2: Grant operator role to deployer (requires admin role from step 1)
+[invoke.grant_operator_role]
+target = ["MISOAccessControls"]
+func = "addOperatorRole"
+args = ["<%= settings.owner %>"]
+depends = ["invoke.init_miso_access"]
+
+# Step 3: Initialize MISOMarket with access controls, factory, and auction templates
+[invoke.init_miso_market]
+target = ["MISOMarket"]
+func = "initMISOMarket"
+args = [
+    "<%= contracts.MISOAccessControls.address %>",
+    "<%= contracts.BoringFactory.address %>",
+    ["<%= contracts.BatchAuction.address %>", "<%= contracts.Crowdsale.address %>", "<%= contracts.DutchAuction.address %>", "<%= contracts.HyperbolicAuction.address %>"]
+]
+depends = ["invoke.init_miso_access"]
+
+# Step 4: Initialize MISOLauncher with access controls and factory
+[invoke.init_miso_launcher]
+target = ["MISOLauncher"]
+func = "initMISOLauncher"
+args = [
+    "<%= contracts.MISOAccessControls.address %>",
+    "<%= contracts.BoringFactory.address %>"
+]
+depends = ["invoke.init_miso_access"]
+
+# Step 5: Add PostAuctionLauncher as a liquidity launcher template (requires operator role)
+[invoke.add_launcher_template]
+target = ["MISOLauncher"]
+func = "addLiquidityLauncherTemplate"
+args = ["<%= contracts.PostAuctionLauncher.address %>"]
+depends = ["invoke.grant_operator_role", "invoke.init_miso_launcher"]
+

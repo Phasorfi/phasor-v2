@@ -3,9 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Clock, Users, TrendingUp, Coins, AlertCircle } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { ArrowLeft, Clock, TrendingUp, Coins, AlertCircle } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,7 +13,7 @@ import { useAccount } from "wagmi";
 import { useFairLaunch } from "@/hooks/useLaunchpad";
 import { ContributeCard } from "@/components/launchpad/ContributeCard";
 import { ClaimCard } from "@/components/launchpad/ClaimCard";
-import { LaunchState } from "@/types";
+import { LaunchState, AUCTION_TYPE_LABELS } from "@/types";
 
 const STATE_COLORS: Record<LaunchState, string> = {
   pending: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
@@ -22,7 +21,6 @@ const STATE_COLORS: Record<LaunchState, string> = {
   success: "bg-blue-500/10 text-blue-500 border-blue-500/20",
   failed: "bg-red-500/10 text-red-500 border-red-500/20",
   finalized: "bg-purple-500/10 text-purple-500 border-purple-500/20",
-  cancelled: "bg-gray-500/10 text-gray-500 border-gray-500/20",
 };
 
 const STATE_LABELS: Record<LaunchState, string> = {
@@ -31,7 +29,6 @@ const STATE_LABELS: Record<LaunchState, string> = {
   success: "Successful",
   failed: "Failed",
   finalized: "Finalized",
-  cancelled: "Cancelled",
 };
 
 export default function LaunchDetailPage() {
@@ -57,9 +54,10 @@ export default function LaunchDetailPage() {
     );
   }
 
-  const { saleInfo, saleStatus, state } = launchInfo;
-  const progress = saleInfo.hardCap > BigInt(0)
-    ? Number((saleStatus.totalRaised * BigInt(100)) / saleInfo.hardCap)
+  const { auctionInfo, auctionStatus, state } = launchInfo;
+  const hasGoal = auctionInfo.auctionType === 1 && auctionInfo.goal > BigInt(0);
+  const progress = hasGoal
+    ? Math.min(Number((auctionStatus.commitmentsTotal * BigInt(100)) / auctionInfo.goal), 100)
     : 0;
 
   const formatDate = (timestamp: number): string => {
@@ -78,7 +76,9 @@ export default function LaunchDetailPage() {
         {/* Header */}
         <div className="flex items-start justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-display font-bold">Token Sale</h1>
+            <h1 className="text-3xl font-display font-bold">
+              {AUCTION_TYPE_LABELS[auctionInfo.auctionType] ?? "Auction"}
+            </h1>
             <p className="text-muted-foreground mt-1 font-mono text-sm">
               {launchAddress}
             </p>
@@ -91,51 +91,55 @@ export default function LaunchDetailPage() {
         {/* Progress Card */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Fundraising Progress</CardTitle>
+            <CardTitle>Auction Progress</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-2xl font-bold">
-                  {parseFloat(formatUnits(saleStatus.totalRaised, 18)).toFixed(4)}
+                  {parseFloat(formatUnits(auctionStatus.commitmentsTotal, 18)).toFixed(4)}
                 </span>
-                <span className="text-2xl text-muted-foreground">
-                  / {parseFloat(formatUnits(saleInfo.hardCap, 18)).toFixed(2)}
-                </span>
+                {hasGoal && (
+                  <span className="text-2xl text-muted-foreground">
+                    / {parseFloat(formatUnits(auctionInfo.goal, 18)).toFixed(2)}
+                  </span>
+                )}
               </div>
-              <Progress value={progress} className="h-3" />
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Soft cap: {parseFloat(formatUnits(saleInfo.softCap, 18)).toFixed(0)}</span>
-                <span>{progress.toFixed(1)}% raised</span>
-              </div>
+              {hasGoal && (
+                <>
+                  <Progress value={progress} className="h-3" />
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Total committed</span>
+                    <span>{progress.toFixed(1)}%</span>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-4 border-t">
               <div className="text-center">
-                <p className="text-2xl font-bold">{saleStatus.totalParticipants}</p>
+                <p className="text-2xl font-bold">{parseFloat(formatUnits(auctionInfo.totalTokens, 18)).toFixed(0)}</p>
                 <p className="text-sm text-muted-foreground flex items-center justify-center gap-1">
-                  <Users className="h-4 w-4" /> Participants
-                </p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold">{parseFloat(formatUnits(saleInfo.totalTokens, 18)).toFixed(0)}</p>
-                <p className="text-sm text-muted-foreground flex items-center justify-center gap-1">
-                  <Coins className="h-4 w-4" /> Tokens
-                </p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold">{(launchInfo.liquidityBps / 100).toFixed(0)}%</p>
-                <p className="text-sm text-muted-foreground flex items-center justify-center gap-1">
-                  <TrendingUp className="h-4 w-4" /> To Liquidity
+                  <Coins className="h-4 w-4" /> Tokens for Sale
                 </p>
               </div>
               <div className="text-center">
                 <p className="text-2xl font-bold">
-                  {saleInfo.vestingDuration > 0 ? `${Math.floor(saleInfo.vestingDuration / 86400)}d` : "None"}
+                  {auctionStatus.tokenPrice > BigInt(0)
+                    ? parseFloat(formatUnits(auctionStatus.tokenPrice, 18)).toFixed(6)
+                    : "TBD"}
                 </p>
                 <p className="text-sm text-muted-foreground flex items-center justify-center gap-1">
-                  <Clock className="h-4 w-4" /> Vesting
+                  <TrendingUp className="h-4 w-4" /> Token Price
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold">
+                  {auctionStatus.auctionSuccessful ? "Yes" : auctionStatus.auctionEnded ? "No" : "Pending"}
+                </p>
+                <p className="text-sm text-muted-foreground flex items-center justify-center gap-1">
+                  <Clock className="h-4 w-4" /> Successful
                 </p>
               </div>
             </div>
@@ -144,31 +148,33 @@ export default function LaunchDetailPage() {
 
         {/* Main Content */}
         <div className="grid gap-6 md:grid-cols-2">
-          {/* Sale Info */}
+          {/* Auction Info */}
           <Card>
             <CardHeader>
-              <CardTitle>Sale Information</CardTitle>
+              <CardTitle>Auction Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex justify-between py-2 border-b">
+                <span className="text-muted-foreground">Type</span>
+                <span className="font-medium">{AUCTION_TYPE_LABELS[auctionInfo.auctionType] ?? "Unknown"}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b">
                 <span className="text-muted-foreground">Start Time</span>
-                <span className="font-medium">{formatDate(saleInfo.startTime)}</span>
+                <span className="font-medium">{formatDate(auctionInfo.startTime)}</span>
               </div>
               <div className="flex justify-between py-2 border-b">
                 <span className="text-muted-foreground">End Time</span>
-                <span className="font-medium">{formatDate(saleInfo.endTime)}</span>
+                <span className="font-medium">{formatDate(auctionInfo.endTime)}</span>
               </div>
-              <div className="flex justify-between py-2 border-b">
-                <span className="text-muted-foreground">Soft Cap</span>
-                <span className="font-medium">{parseFloat(formatUnits(saleInfo.softCap, 18)).toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between py-2 border-b">
-                <span className="text-muted-foreground">Hard Cap</span>
-                <span className="font-medium">{parseFloat(formatUnits(saleInfo.hardCap, 18)).toFixed(2)}</span>
-              </div>
+              {hasGoal && (
+                <div className="flex justify-between py-2 border-b">
+                  <span className="text-muted-foreground">Goal</span>
+                  <span className="font-medium">{parseFloat(formatUnits(auctionInfo.goal, 18)).toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between py-2">
-                <span className="text-muted-foreground">Sale Token</span>
-                <span className="font-mono text-sm">{saleInfo.saleToken.slice(0, 10)}...</span>
+                <span className="text-muted-foreground">Auction Token</span>
+                <span className="font-mono text-sm">{auctionInfo.auctionToken.slice(0, 10)}...</span>
               </div>
             </CardContent>
           </Card>
@@ -176,9 +182,9 @@ export default function LaunchDetailPage() {
           {/* Action Card */}
           {state === "active" ? (
             <ContributeCard launchAddress={launchAddress} onSuccess={refetch} />
-          ) : state === "finalized" || (state === "success" && saleStatus.finalized) ? (
+          ) : state === "finalized" || state === "success" ? (
             <ClaimCard launchAddress={launchAddress} onSuccess={refetch} />
-          ) : state === "failed" || state === "cancelled" ? (
+          ) : state === "failed" ? (
             <ClaimCard launchAddress={launchAddress} isRefund onSuccess={refetch} />
           ) : (
             <Card>
@@ -189,15 +195,15 @@ export default function LaunchDetailPage() {
                 {state === "pending" ? (
                   <>
                     <Clock className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Sale has not started yet</p>
+                    <p className="text-muted-foreground">Auction has not started yet</p>
                     <p className="text-sm text-muted-foreground mt-2">
-                      Starts: {formatDate(saleInfo.startTime)}
+                      Starts: {formatDate(auctionInfo.startTime)}
                     </p>
                   </>
                 ) : (
                   <>
                     <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Sale has ended</p>
+                    <p className="text-muted-foreground">Auction has ended</p>
                   </>
                 )}
               </CardContent>
@@ -221,13 +227,13 @@ export default function LaunchDetailPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold">
-                    {parseFloat(formatUnits(userLaunchInfo.allocation, 18)).toFixed(4)}
+                    {parseFloat(formatUnits(userLaunchInfo.tokensClaimable, 18)).toFixed(4)}
                   </p>
-                  <p className="text-sm text-muted-foreground">Allocation</p>
+                  <p className="text-sm text-muted-foreground">Claimable</p>
                 </div>
                 <div>
                   <p className="text-2xl font-bold">
-                    {userLaunchInfo.claimed ? "Yes" : "No"}
+                    {userLaunchInfo.claimed > BigInt(0) ? "Yes" : "No"}
                   </p>
                   <p className="text-sm text-muted-foreground">Claimed</p>
                 </div>

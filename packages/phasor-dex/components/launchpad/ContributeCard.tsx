@@ -25,8 +25,8 @@ export function ContributeCard({ launchAddress, onSuccess }: ContributeCardProps
     approve, contribute, error,
   } = useFairLaunch(launchAddress, amount);
 
-  const isETHSale = !launchInfo?.saleInfo.paymentToken ||
-    launchInfo.saleInfo.paymentToken === "0x0000000000000000000000000000000000000000";
+  const isETHSale = !launchInfo?.auctionInfo.paymentCurrency ||
+    launchInfo.auctionInfo.paymentCurrency === "0x0000000000000000000000000000000000000000";
 
   const balance = ethBalance?.value ?? BigInt(0);
 
@@ -47,10 +47,10 @@ export function ContributeCard({ launchAddress, onSuccess }: ContributeCardProps
     if (amountBigInt > balance) return { text: "Insufficient Balance", disabled: true };
     if (!isETHSale) {
       if (isApproving) return { text: "Approving...", disabled: true };
-      if (needsApproval) return { text: "Approve", disabled: false, action: "approve" };
+      if (needsApproval) return { text: "Approve", disabled: false, action: "approve" as const };
     }
     if (isContributing || isConfirming) return { text: "Contributing...", disabled: true };
-    return { text: "Contribute", disabled: false, action: "contribute" };
+    return { text: "Contribute", disabled: false, action: "contribute" as const };
   }, [isConnected, amount, balance, needsApproval, isApproving, isContributing, isConfirming, isETHSale]);
 
   const handleButtonClick = async () => {
@@ -66,7 +66,7 @@ export function ContributeCard({ launchAddress, onSuccess }: ContributeCardProps
           Contribute
         </CardTitle>
         <CardDescription>
-          Commit {isETHSale ? "MON" : "tokens"} to participate in this sale
+          Commit {isETHSale ? "MON" : "tokens"} to participate in this auction
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -97,15 +97,11 @@ export function ContributeCard({ launchAddress, onSuccess }: ContributeCardProps
           <div className="p-3 rounded-lg bg-muted/50 text-sm space-y-1">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Total for sale</span>
-              <span>{parseFloat(formatUnits(launchInfo.saleInfo.totalTokens, 18)).toFixed(0)} tokens</span>
+              <span>{parseFloat(formatUnits(launchInfo.auctionInfo.totalTokens, 18)).toFixed(0)} tokens</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Your share (est.)</span>
-              <span>
-                {amount && launchInfo.saleStatus.totalRaised > BigInt(0)
-                  ? ((parseFloat(amount) / (Number(formatUnits(launchInfo.saleStatus.totalRaised, 18)) + parseFloat(amount))) * 100).toFixed(2)
-                  : "0"}%
-              </span>
+              <span className="text-muted-foreground">Total committed</span>
+              <span>{parseFloat(formatUnits(launchInfo.auctionStatus.commitmentsTotal, 18)).toFixed(4)}</span>
             </div>
           </div>
         )}

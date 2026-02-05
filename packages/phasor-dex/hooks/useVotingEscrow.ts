@@ -27,17 +27,19 @@ export function useVotingEscrow(lockAmount?: string) {
     }
   }, [lockAmount]);
 
+  // Total locked PHASOR (Velodrome uses `supply()` instead of `totalLocked()`)
   const { data: totalLocked = BigInt(0) } = useReadContract({
     address: CONTRACTS.VOTING_ESCROW,
     abi: VOTING_ESCROW_ABI,
-    functionName: "totalLocked",
+    functionName: "supply",
     query: { enabled: !!CONTRACTS.VOTING_ESCROW },
   });
 
+  // Total voting power (Velodrome `totalSupply()` returns total ve power)
   const { data: totalVotingPower = BigInt(0) } = useReadContract({
     address: CONTRACTS.VOTING_ESCROW,
     abi: VOTING_ESCROW_ABI,
-    functionName: "totalVotingPower",
+    functionName: "totalSupply",
     query: { enabled: !!CONTRACTS.VOTING_ESCROW },
   });
 
@@ -57,14 +59,40 @@ export function useVotingEscrow(lockAmount?: string) {
     query: { enabled: !!account && !!CONTRACTS.PHASOR_TOKEN && !!CONTRACTS.VOTING_ESCROW },
   });
 
-  const { data: tokenIds = [], refetch: refetchTokenIds } = useReadContract({
+  // Velodrome VE: use balanceOf (NFT count) + ownerToNFTokenIdList to get token IDs
+  const { data: nftCount = BigInt(0), refetch: refetchNftCount } = useReadContract({
     address: CONTRACTS.VOTING_ESCROW,
     abi: VOTING_ESCROW_ABI,
-    functionName: "tokensOfOwner",
+    functionName: "balanceOf",
     args: account ? [account] : undefined,
     query: { enabled: !!account && !!CONTRACTS.VOTING_ESCROW },
   });
 
+  // Build multicall to fetch all token IDs by index
+  const tokenIdContracts = useMemo(() => {
+    const count = Number(nftCount);
+    if (!account || count === 0) return [];
+    return Array.from({ length: count }, (_, i) => ({
+      address: CONTRACTS.VOTING_ESCROW as Address,
+      abi: VOTING_ESCROW_ABI,
+      functionName: "ownerToNFTokenIdList" as const,
+      args: [account, BigInt(i)],
+    }));
+  }, [account, nftCount]);
+
+  const { data: tokenIdResults, refetch: refetchTokenIdResults } = useReadContracts({
+    contracts: tokenIdContracts,
+    query: { enabled: tokenIdContracts.length > 0 },
+  });
+
+  const tokenIds = useMemo(() => {
+    if (!tokenIdResults) return [];
+    return tokenIdResults
+      .filter((r) => r.status === "success")
+      .map((r) => r.result as bigint);
+  }, [tokenIdResults]);
+
+  // Fetch lock data and voting power for each token ID
   const lockContracts = useMemo(() => {
     if (!tokenIds || tokenIds.length === 0) return [];
     return tokenIds.flatMap((tokenId) => [
@@ -95,10 +123,13 @@ export function useVotingEscrow(lockAmount?: string) {
       const lockedResult = lockData[i * 2];
       const votingPowerResult = lockData[i * 2 + 1];
       if (lockedResult?.status === "success" && votingPowerResult?.status === "success") {
-        const locked = lockedResult.result as { amount: bigint; start: number; end: number };
+        // Velodrome LockedBalance: { int128 amount, uint256 end, bool isPermanent }
+        const locked = lockedResult.result as { amount: bigint; end: bigint; isPermanent: boolean };
+        // int128 amount may be negative in edge cases; use absolute value
+        const amount = locked.amount < BigInt(0) ? -locked.amount : locked.amount;
         nfts.push({
           tokenId: tokenIds[i],
-          locked: { amount: locked.amount, start: Number(locked.start), end: Number(locked.end) },
+          locked: { amount, end: Number(locked.end), isPermanent: locked.isPermanent },
           votingPower: votingPowerResult.result as bigint,
         });
       }
@@ -120,9 +151,7 @@ export function useVotingEscrow(lockAmount?: string) {
   useEffect(() => { if (approveError) setError(approveError.message); }, [approveError]);
   useEffect(() => { if (lockError) setError(lockError.message); }, [lockError]);
   useEffect(() => { if (isApproveSuccess) setTimeout(() => refetchAllowance(), 500); }, [isApproveSuccess, refetchAllowance]);
-  useEffect(() => { if (isLockSuccess) setTimeout(() => { refetchTokenIds(); refetchLocks(); }, 500); }, [isLockSuccess, refetchTokenIds, refetchLocks]);
-
-  const roundToWeek = useCallback((timestamp: number): number => Math.floor(timestamp / WEEK) * WEEK, []);
+  useEffect(() => { if (isLockSuccess) setTimeout(() => { refetchNftCount(); refetchTokenIdResults(); refetchLocks(); }, 500); }, [isLockSuccess, refetchNftCount, refetchTokenIdResults, refetchLocks]);
 
   const calculateVotingPower = useCallback((amount: string, durationSeconds: number): bigint => {
     try {
@@ -137,13 +166,13 @@ export function useVotingEscrow(lockAmount?: string) {
     writeApprove({ address: CONTRACTS.PHASOR_TOKEN, abi: erc20Abi, functionName: "approve", args: [CONTRACTS.VOTING_ESCROW, parsedAmount] });
   }, [account, parsedAmount, writeApprove]);
 
+  // Velodrome createLock takes duration in seconds (not absolute timestamp)
   const createLock = useCallback(async (amount: string, durationSeconds: number) => {
     if (!account || !CONTRACTS.VOTING_ESCROW) return;
     setError(null);
     const parsedAmt = parseUnits(amount, 18);
-    const unlockTime = roundToWeek(Math.floor(Date.now() / 1000) + durationSeconds);
-    writeLock({ address: CONTRACTS.VOTING_ESCROW, abi: VOTING_ESCROW_ABI, functionName: "createLock", args: [parsedAmt, BigInt(unlockTime)] });
-  }, [account, roundToWeek, writeLock]);
+    writeLock({ address: CONTRACTS.VOTING_ESCROW, abi: VOTING_ESCROW_ABI, functionName: "createLock", args: [parsedAmt, BigInt(durationSeconds)] });
+  }, [account, writeLock]);
 
   const increaseAmount = useCallback(async (tokenId: bigint, amount: string) => {
     if (!account || !CONTRACTS.VOTING_ESCROW) return;
@@ -151,11 +180,12 @@ export function useVotingEscrow(lockAmount?: string) {
     writeLock({ address: CONTRACTS.VOTING_ESCROW, abi: VOTING_ESCROW_ABI, functionName: "increaseAmount", args: [tokenId, parseUnits(amount, 18)] });
   }, [account, writeLock]);
 
-  const increaseUnlockTime = useCallback(async (tokenId: bigint, newUnlockTime: number) => {
+  // Velodrome increaseUnlockTime takes additional duration in seconds
+  const increaseUnlockTime = useCallback(async (tokenId: bigint, additionalDurationSeconds: number) => {
     if (!account || !CONTRACTS.VOTING_ESCROW) return;
     setError(null);
-    writeLock({ address: CONTRACTS.VOTING_ESCROW, abi: VOTING_ESCROW_ABI, functionName: "increaseUnlockTime", args: [tokenId, BigInt(roundToWeek(newUnlockTime))] });
-  }, [account, roundToWeek, writeLock]);
+    writeLock({ address: CONTRACTS.VOTING_ESCROW, abi: VOTING_ESCROW_ABI, functionName: "increaseUnlockTime", args: [tokenId, BigInt(additionalDurationSeconds)] });
+  }, [account, writeLock]);
 
   const withdraw = useCallback(async (tokenId: bigint) => {
     if (!account || !CONTRACTS.VOTING_ESCROW) return;
@@ -163,14 +193,14 @@ export function useVotingEscrow(lockAmount?: string) {
     writeLock({ address: CONTRACTS.VOTING_ESCROW, abi: VOTING_ESCROW_ABI, functionName: "withdraw", args: [tokenId] });
   }, [account, writeLock]);
 
-  const refetch = useCallback(() => { refetchAllowance(); refetchTokenIds(); refetchLocks(); }, [refetchAllowance, refetchTokenIds, refetchLocks]);
+  const refetch = useCallback(() => { refetchAllowance(); refetchNftCount(); refetchTokenIdResults(); refetchLocks(); }, [refetchAllowance, refetchNftCount, refetchTokenIdResults, refetchLocks]);
 
   return {
     userVeNFTs, totalLocked, totalVotingPower, phasorBalance, isLoading,
     createLock, increaseAmount, increaseUnlockTime, withdraw,
     needsApproval, isApproving: isApprovePending || isApproveConfirming,
     isLocking: isLockPending, isConfirming: isLockConfirming, isSuccess: isLockSuccess,
-    approve, refetch, error, calculateVotingPower, roundToWeek,
+    approve, refetch, error, calculateVotingPower,
   };
 }
 

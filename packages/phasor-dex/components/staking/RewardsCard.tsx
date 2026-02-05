@@ -14,22 +14,18 @@ interface RewardsCardProps {
 
 export function RewardsCard({ onSuccess }: RewardsCardProps) {
   const { isConnected } = useAccount();
-  const { userStakeInfo, claimRewards, exit, isStaking, isConfirming, error } = useStakingRewards();
+  const { userStakeInfo, claimRewards, isStaking, isConfirming, error } = useStakingRewards();
 
   const pendingRewards = userStakeInfo?.pendingRewards ?? BigInt(0);
   const stakedBalance = userStakeInfo?.balance ?? BigInt(0);
   const hasRewards = pendingRewards > BigInt(0);
-  const hasStake = stakedBalance > BigInt(0);
 
   const handleClaim = async () => {
     await claimRewards();
     if (onSuccess) onSuccess();
   };
 
-  const handleExit = async () => {
-    await exit();
-    if (onSuccess) onSuccess();
-  };
+  const timeMultiplier = Number(userStakeInfo?.timeMultiplier ?? BigInt(1e18)) / 1e18;
 
   return (
     <Card>
@@ -62,10 +58,8 @@ export function RewardsCard({ onSuccess }: RewardsCardProps) {
             <p className="font-medium">{parseFloat(formatUnits(stakedBalance, 18)).toFixed(4)} LP</p>
           </div>
           <div>
-            <p className="text-muted-foreground">Your Multiplier</p>
-            <p className="font-medium">
-              {(Number(userStakeInfo?.totalMultiplier ?? BigInt(1e18)) / 1e18).toFixed(2)}x
-            </p>
+            <p className="text-muted-foreground">Time Multiplier</p>
+            <p className="font-medium">{timeMultiplier.toFixed(2)}x</p>
           </div>
         </div>
 
@@ -74,29 +68,15 @@ export function RewardsCard({ onSuccess }: RewardsCardProps) {
           <p className="text-sm text-destructive">{error}</p>
         )}
 
-        {/* Buttons */}
-        <div className="space-y-2">
-          <Button
-            className="w-full"
-            size="lg"
-            disabled={!isConnected || !hasRewards || isStaking || isConfirming}
-            onClick={handleClaim}
-          >
-            {isStaking || isConfirming ? "Claiming..." : "Claim Rewards"}
-          </Button>
-
-          {hasStake && (
-            <Button
-              className="w-full"
-              size="lg"
-              variant="outline"
-              disabled={!isConnected || isStaking || isConfirming}
-              onClick={handleExit}
-            >
-              Exit (Unstake All + Claim)
-            </Button>
-          )}
-        </div>
+        {/* Claim Button */}
+        <Button
+          className="w-full"
+          size="lg"
+          disabled={!isConnected || !hasRewards || isStaking || isConfirming}
+          onClick={handleClaim}
+        >
+          {isStaking || isConfirming ? "Claiming..." : "Claim Rewards"}
+        </Button>
       </CardContent>
     </Card>
   );

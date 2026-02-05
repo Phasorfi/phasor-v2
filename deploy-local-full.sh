@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Add foundry to PATH
+export PATH="$HOME/.foundry/bin:$PATH"
+
 # ============================================================================
 # Phasor V2 - Full Local Deployment Script
 # ============================================================================
@@ -27,7 +30,7 @@ CANNONFILE="cannonfile.local-full.toml"
 # Token decimals mapping
 declare -A TOKEN_DECIMALS=(
     ["WMON"]=18 ["USDC"]=6 ["USDT"]=6 ["WETH"]=18 ["WBTC"]=8
-    ["SOL"]=9 ["FOLKS"]=6 ["PhasorToken"]=18
+    ["SOL"]=9 ["FOLKS"]=6 ["Phasor"]=18
 )
 
 # Liquidity Pools Configuration (6 pools with realistic liquidity for native Monad DEX)
@@ -135,7 +138,7 @@ calculate_min_output() {
 compile_contracts() {
     log_step "Step 1: Compiling contracts with Forge..."
 
-    forge build packages/
+    ~/.foundry/bin/forge build
 
     log_success "Contracts compiled successfully"
 }
@@ -152,7 +155,7 @@ calculate_and_update_hash() {
 
     # Recompile with updated hash
     log_info "Recompiling with updated hash..."
-    forge build packages/
+    ~/.foundry/bin/forge build
 
     log_success "INIT_CODE_HASH updated and contracts recompiled"
 }
@@ -184,13 +187,22 @@ deploy_contracts() {
     ADDRESSES["Factory"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.UniswapV2Factory\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
     ADDRESSES["Router"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.UniswapV2Router\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
 
-    # PHASOR Ecosystem addresses
-    ADDRESSES["PhasorToken"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.PhasorToken\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
+    # Velodrome Fork Ecosystem addresses
+    ADDRESSES["Phasor"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.Phasor\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
     ADDRESSES["VotingEscrow"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.VotingEscrow\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
+    ADDRESSES["Voter"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.Voter\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
     ADDRESSES["RewardsDistributor"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.RewardsDistributor\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
-    ADDRESSES["StakingRewards"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.StakingRewards\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
-    ADDRESSES["FairLaunchTemplate"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.FairLaunchTemplate\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
-    ADDRESSES["LaunchpadFactory"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.LaunchpadFactory\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
+    ADDRESSES["Minter"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.Minter\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
+
+    # MISO Launchpad addresses
+    ADDRESSES["MISOAccessControls"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.MISOAccessControls\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
+    ADDRESSES["MISOMarket"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.MISOMarket\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
+    ADDRESSES["MISOLauncher"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.MISOLauncher\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
+    ADDRESSES["BatchAuction"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.BatchAuction\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
+    ADDRESSES["Crowdsale"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.Crowdsale\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
+    ADDRESSES["DutchAuction"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.DutchAuction\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
+    ADDRESSES["HyperbolicAuction"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.HyperbolicAuction\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
+    ADDRESSES["PostAuctionLauncher"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.PostAuctionLauncher\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
 
     # Get the current block number (factory was just deployed)
     FACTORY_DEPLOY_BLOCK=$(cast block latest --rpc-url $RPC_URL 2>/dev/null | grep -oP 'number\s+\K\d+')
@@ -199,11 +211,13 @@ deploy_contracts() {
     log_info "Factory: ${ADDRESSES[Factory]}"
     log_info "Router: ${ADDRESSES[Router]}"
     log_info "WMON: ${ADDRESSES[WMON]}"
-    log_info "PhasorToken: ${ADDRESSES[PhasorToken]}"
+    log_info "Phasor: ${ADDRESSES[Phasor]}"
     log_info "VotingEscrow: ${ADDRESSES[VotingEscrow]}"
+    log_info "Voter: ${ADDRESSES[Voter]}"
     log_info "RewardsDistributor: ${ADDRESSES[RewardsDistributor]}"
-    log_info "StakingRewards: ${ADDRESSES[StakingRewards]}"
-    log_info "LaunchpadFactory: ${ADDRESSES[LaunchpadFactory]}"
+    log_info "Minter: ${ADDRESSES[Minter]}"
+    log_info "MISOMarket: ${ADDRESSES[MISOMarket]}"
+    log_info "MISOLauncher: ${ADDRESSES[MISOLauncher]}"
     log_info "Deployment block: $FACTORY_DEPLOY_BLOCK"
 }
 
@@ -238,7 +252,7 @@ create_liquidity_pools() {
         # For WMON/WETH pairs, we need to deposit ETH first
         if [ "$token0_name" = "WMON" ]; then
             log_info "  Depositing ${amount0} ETH to WMON..."
-            cast send $token0 "deposit()" \
+            ~/.foundry/bin/cast send $token0 "deposit()" \
                 --private-key $DEPLOYER_KEY \
                 --rpc-url $RPC_URL \
                 --value ${amount0_wei} || {
@@ -249,7 +263,7 @@ create_liquidity_pools() {
 
         if [ "$token1_name" = "WMON" ]; then
             log_info "  Depositing ${amount1} ETH to WMON..."
-            cast send $token1 "deposit()" \
+            ~/.foundry/bin/cast send $token1 "deposit()" \
                 --private-key $DEPLOYER_KEY \
                 --rpc-url $RPC_URL \
                 --value ${amount1_wei} || {
@@ -260,7 +274,7 @@ create_liquidity_pools() {
 
         if [ "$token1_name" = "WETH" ]; then
             log_info "  Depositing ${amount1} ETH to WETH..."
-            cast send $token1 "deposit()" \
+            ~/.foundry/bin/cast send $token1 "deposit()" \
                 --private-key $DEPLOYER_KEY \
                 --rpc-url $RPC_URL \
                 --value ${amount1_wei} || {
@@ -271,7 +285,7 @@ create_liquidity_pools() {
 
         # Approve tokens
         log_info "  Approving $token0_name..."
-        cast send $token0 "approve(address,uint256)" $router $amount0_wei \
+        ~/.foundry/bin/cast send $token0 "approve(address,uint256)" $router $amount0_wei \
             --private-key $DEPLOYER_KEY \
             --rpc-url $RPC_URL || {
                 log_error "Failed to approve $token0_name"
@@ -279,7 +293,7 @@ create_liquidity_pools() {
             }
 
         log_info "  Approving $token1_name..."
-        cast send $token1 "approve(address,uint256)" $router $amount1_wei \
+        ~/.foundry/bin/cast send $token1 "approve(address,uint256)" $router $amount1_wei \
             --private-key $DEPLOYER_KEY \
             --rpc-url $RPC_URL || {
                 log_error "Failed to approve $token1_name"
@@ -288,7 +302,7 @@ create_liquidity_pools() {
 
         # Add liquidity
         log_info "  Adding liquidity to router..."
-        cast send $router \
+        ~/.foundry/bin/cast send $router \
             "addLiquidity(address,address,uint256,uint256,uint256,uint256,address,uint256)" \
             $token0 \
             $token1 \
@@ -322,136 +336,94 @@ create_liquidity_pools() {
 # ============================================================================
 
 setup_staking_system() {
-    log_step "Step 4.5: Setting up staking system..."
+    log_step "Step 4.5: Setting up Velodrome Gauge & vePHASOR..."
 
-    local staking="${ADDRESSES[StakingRewards]}"
-    local distributor="${ADDRESSES[RewardsDistributor]}"
+    local voter="${ADDRESSES[Voter]}"
     local ve="${ADDRESSES[VotingEscrow]}"
-    local phasor="${ADDRESSES[PhasorToken]}"
+    local phasor="${ADDRESSES[Phasor]}"
     local factory="${ADDRESSES[Factory]}"
 
-    # Verify RewardsDistributor owns PhasorToken
-    local phasor_owner=$(cast call $phasor "owner()(address)" --rpc-url $RPC_URL)
-    if [ "${phasor_owner,,}" != "${distributor,,}" ]; then
-        log_error "RewardsDistributor does not own PhasorToken! Cannot mint rewards."
-        log_info "PhasorToken owner: $phasor_owner"
-        log_info "RewardsDistributor: $distributor"
-        return 1
-    fi
-    log_success "RewardsDistributor owns PhasorToken (can mint rewards)"
-
-    # Get WMON-USDC LP pair address for staking
+    # Get WMON-USDC LP pair address
     local wmon_usdc_lp=$(cast call $factory "getPair(address,address)(address)" ${ADDRESSES[WMON]} ${ADDRESSES[USDC]} --rpc-url $RPC_URL)
     ADDRESSES["LP_WMON-USDC"]=$wmon_usdc_lp
     log_info "WMON-USDC LP pair: $wmon_usdc_lp"
 
-    # Set staking token on StakingRewards
-    log_info "  Setting staking token on StakingRewards..."
-    cast send $staking \
-        "setStakingToken(address)" \
+    # Create Gauge for WMON-USDC pair via Voter
+    log_info "  Creating Gauge for WMON-USDC pair via Voter..."
+    local gauge_tx=$(~/.foundry/bin/cast send $voter \
+        "createGauge(address,address)" \
+        $factory \
         $wmon_usdc_lp \
         --private-key $DEPLOYER_KEY \
-        --rpc-url $RPC_URL > /dev/null 2>&1 || {
-            log_error "Failed to set staking token"
-            return 1
-        }
-    log_success "  Staking token set to WMON-USDC LP"
+        --rpc-url $RPC_URL \
+        --json 2>/dev/null)
 
-    # Add staking pool to RewardsDistributor (100% allocation to single pool)
-    log_info "  Adding staking pool to RewardsDistributor..."
-    cast send $distributor \
-        "addPool(address,uint256)" \
-        $staking \
-        1000 \
-        --private-key $DEPLOYER_KEY \
-        --rpc-url $RPC_URL > /dev/null 2>&1 || {
-            log_error "Failed to add pool to RewardsDistributor"
-            return 1
-        }
-    log_success "  Pool added to RewardsDistributor (1000 alloc points)"
+    # Extract gauge address from Voter's gauges mapping
+    local gauge_addr=$(cast call $voter "gauges(address)(address)" $wmon_usdc_lp --rpc-url $RPC_URL)
+    ADDRESSES["Gauge"]=$gauge_addr
+    log_success "  Gauge created: $gauge_addr"
 
-    # Setup test data: Create vePHASOR lock for deployer
+    # Create vePHASOR lock for deployer
     log_info "  Creating test vePHASOR lock for deployer..."
-
-    # First, mint some PHASOR to deployer for locking
-    # RewardsDistributor owns PhasorToken, so we need to use the distribute function
-    # or we can transfer from initial supply
-
-    # Transfer PHASOR to deployer from initial supply (deployer has 100M initial)
     local deployer_phasor=$(cast call $phasor "balanceOf(address)(uint256)" $DEPLOYER_ADDR --rpc-url $RPC_URL)
     log_info "    Deployer PHASOR balance: $deployer_phasor"
 
     if [ "$deployer_phasor" != "0" ]; then
-        # Lock 10,000 PHASOR for 1 year
+        # Lock 10,000 PHASOR for 1 year (duration in seconds for Velodrome VE)
         local lock_amount=$(to_wei 10000 18)
-        local lock_end=$(($(cast block latest --json --rpc-url $RPC_URL | jq -r '.timestamp' | xargs printf "%d\n") + 365 * 86400))
+        local lock_duration=$((365 * 86400))
 
         log_info "    Approving PHASOR for VotingEscrow..."
-        cast send $phasor \
+        ~/.foundry/bin/cast send $phasor \
             "approve(address,uint256)" \
             $ve \
             $lock_amount \
             --private-key $DEPLOYER_KEY \
             --rpc-url $RPC_URL > /dev/null 2>&1
 
-        log_info "    Creating vePHASOR lock..."
-        cast send $ve \
+        log_info "    Creating vePHASOR lock (1 year duration)..."
+        ~/.foundry/bin/cast send $ve \
             "createLock(uint256,uint256)" \
             $lock_amount \
-            $lock_end \
+            $lock_duration \
             --private-key $DEPLOYER_KEY \
             --rpc-url $RPC_URL > /dev/null 2>&1 || {
                 log_error "    Failed to create vePHASOR lock"
             }
 
-        # Check veNFT was created
         local ve_balance=$(cast call $ve "balanceOf(address)(uint256)" $DEPLOYER_ADDR --rpc-url $RPC_URL)
         if [ "$ve_balance" != "0" ]; then
             log_success "    Created vePHASOR lock (tokenId: 1)"
         fi
     fi
 
-    # Stake LP tokens with ve-boost
-    log_info "  Staking LP tokens with ve-boost..."
+    # Deposit LP tokens into Gauge
+    log_info "  Depositing LP tokens into Gauge..."
     local deployer_lp_balance_raw=$(cast call $wmon_usdc_lp "balanceOf(address)(uint256)" $DEPLOYER_ADDR --rpc-url $RPC_URL)
-    # Clean the output - extract first number only (cast outputs "123456 1.23e5" format)
     local deployer_lp_balance=$(echo "$deployer_lp_balance_raw" | tr -d '[]' | awk '{print $1}')
 
     if [ "$deployer_lp_balance" != "0" ] && [ -n "$deployer_lp_balance" ]; then
-        # Stake 50% of LP tokens with veNFT boost
-        # Use shell arithmetic for integer division (works for numbers up to ~9 quintillion)
         local stake_amount=$((deployer_lp_balance / 2))
 
-        cast send $wmon_usdc_lp \
+        ~/.foundry/bin/cast send $wmon_usdc_lp \
             "approve(address,uint256)" \
-            $staking \
+            $gauge_addr \
             $stake_amount \
             --private-key $DEPLOYER_KEY \
             --rpc-url $RPC_URL > /dev/null 2>&1
 
-        cast send $staking \
-            "stake(uint256,uint256)" \
+        ~/.foundry/bin/cast send $gauge_addr \
+            "deposit(uint256)" \
             $stake_amount \
-            1 \
             --private-key $DEPLOYER_KEY \
             --rpc-url $RPC_URL > /dev/null 2>&1 || {
-                log_error "    Failed to stake LP tokens"
+                log_error "    Failed to deposit LP tokens into Gauge"
             }
 
-        log_success "    Staked LP tokens with veNFT boost"
+        log_success "    Deposited LP tokens into Gauge"
     fi
 
-    # Distribute initial rewards
-    log_info "  Distributing initial rewards..."
-    cast send $distributor \
-        "distribute()" \
-        --private-key $DEPLOYER_KEY \
-        --rpc-url $RPC_URL > /dev/null 2>&1 || {
-            log_error "    Failed to distribute rewards"
-        }
-    log_success "    Initial rewards distributed"
-
-    log_success "Staking system setup complete"
+    log_success "Staking system setup complete (Gauge + vePHASOR)"
 }
 
 # ============================================================================
@@ -459,178 +431,146 @@ setup_staking_system() {
 # ============================================================================
 
 setup_test_launches() {
-    log_step "Step 4.6: Setting up test fair launches..."
+    log_step "Step 4.6: Setting up MISO test auctions..."
 
-    local launchpad="${ADDRESSES[LaunchpadFactory]}"
-    local wmon="${ADDRESSES[WMON]}"
+    local miso_market="${ADDRESSES[MISOMarket]}"
+    local phasor="${ADDRESSES[Phasor]}"
 
-    # We'll create mock sale tokens for the launches
-    # Deploy 3 test tokens for different launch scenarios
+    # Use PHASOR token for test auctions (18 decimals, required by Crowdsale)
+    local test_token=$phasor
+    log_info "  Using PHASOR token for test auctions: $test_token"
 
-    log_info "  Deploying test sale token..."
+    # ETH sentinel address used by MISO for ETH payments
+    local ETH_ADDRESS="0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
 
-    # Deploy a fresh ERC20 token for test launches (10 trillion supply with 6 decimals = 10M tokens)
-    # Options must come BEFORE --create subcommand
-    local test_token1=$(cast send \
-        --private-key $DEPLOYER_KEY \
-        --rpc-url $RPC_URL \
-        --json \
-        --create "$(cat out/MockUSDC.sol/MockUSDC.json | jq -r '.bytecode.object')" \
-        "constructor(uint256)" 10000000000000 \
-        2>/dev/null | jq -r '.contractAddress')
-
-    if [ -z "$test_token1" ] || [ "$test_token1" = "null" ]; then
-        # Fallback: use FOLKS as a test token (deployer has plenty)
-        log_error "  Failed to deploy test token, using FOLKS as fallback..."
-        test_token1="${ADDRESSES[FOLKS]}"
-    else
-        log_success "  Test token deployed: $test_token1"
-    fi
-
-    # Get current block timestamp
     local current_time=$(cast block latest --json --rpc-url $RPC_URL | jq -r '.timestamp' | xargs printf "%d\n")
 
     # =========================================================================
-    # Launch 1: Active Sale (starts in 120 seconds, then we advance time)
+    # Auction 1: Active Crowdsale
+    # Template order: BatchAuction=1, Crowdsale=2, DutchAuction=3, Hyperbolic=4
     # =========================================================================
-    log_info "  Creating Launch 1: Active Sale..."
+    log_info "  Creating Auction 1: Active Crowdsale..."
 
-    local sale1_amount=$(to_wei 100000 6)  # 100k tokens
-    local liquidity1_amount=$(to_wei 10000 6)  # 10k for liquidity
-    local start1=$((current_time + 120))   # Starts in 120 seconds (buffer for tx execution)
-    local end1=$((current_time + 86400))   # Ends in 24 hours
+    local sale1_tokens=$(to_wei 100000 18)  # 100k PHASOR for sale
+    local start1=$((current_time + 120))
+    local end1=$((current_time + 86400))
+    local rate1=1000  # 1000 tokens per ETH
+    local goal1=$(to_wei 10 18)  # 10 ETH goal
 
-    # Approve tokens (use shell arithmetic for addition)
-    local approve1_amount=$((sale1_amount + liquidity1_amount))
-    cast send $test_token1 \
+    # Approve tokens to MISOMarket
+    ~/.foundry/bin/cast send $test_token \
         "approve(address,uint256)" \
-        $launchpad \
-        $approve1_amount \
+        $miso_market \
+        $sale1_tokens \
         --private-key $DEPLOYER_KEY \
         --rpc-url $RPC_URL > /dev/null 2>&1
 
-    # Create launch using the struct format
-    # CreateLaunchParams(saleToken, paymentToken, totalTokens, tokensForLiquidity, startTime, endTime, softCap, hardCap, vestingDuration, vestingCliff, liquidityBps)
-    local launch1=$(cast send $launchpad \
-        "createFairLaunch((address,address,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256))" \
-        "($test_token1,0x0000000000000000000000000000000000000000,$sale1_amount,$liquidity1_amount,$start1,$end1,0,$(to_wei 100 18),0,0,3000)" \
+    # Crowdsale init data: funder, token, paymentCurrency, totalTokens, startTime, endTime, rate, goal, admin, pointList, wallet
+    local crowdsale_data=$(cast abi-encode "f(address,address,address,uint256,uint256,uint256,uint256,uint256,address,address,address)" \
+        $DEPLOYER_ADDR \
+        $test_token \
+        $ETH_ADDRESS \
+        $sale1_tokens \
+        $start1 \
+        $end1 \
+        $rate1 \
+        $goal1 \
+        $DEPLOYER_ADDR \
+        "0x0000000000000000000000000000000000000000" \
+        $DEPLOYER_ADDR)
+
+    # templateId 2 = Crowdsale
+    local auction1_tx=$(~/.foundry/bin/cast send $miso_market \
+        "createMarket(uint256,address,uint256,address,bytes)" \
+        2 \
+        $test_token \
+        $sale1_tokens \
+        "0x0000000000000000000000000000000000000000" \
+        $crowdsale_data \
         --private-key $DEPLOYER_KEY \
         --rpc-url $RPC_URL \
-        --json 2>/dev/null | jq -r '.logs[0].topics[1]' | xargs cast parse-bytes32-address 2>/dev/null)
+        --json 2>/dev/null)
 
-    if [ -n "$launch1" ] && [ "$launch1" != "null" ]; then
-        ADDRESSES["Launch1"]=$launch1
-        log_success "    Launch 1 created: $launch1 (100 ETH hard cap)"
+    # Get auction address from MISOMarket.getMarkets()
+    local markets_after=$(cast call $miso_market "getMarkets()(address[])" --rpc-url $RPC_URL 2>/dev/null)
+    local auction1_addr=$(echo "$markets_after" | tr -d '[]' | tr ',' '\n' | tail -1 | tr -d ' ')
 
-        # Advance blockchain time past start time to make the sale active
-        log_info "    Advancing time to activate the sale..."
-        cast rpc evm_increaseTime 150 --rpc-url $RPC_URL > /dev/null 2>&1
-        cast rpc evm_mine --rpc-url $RPC_URL > /dev/null 2>&1
+    if [ -n "$auction1_addr" ] && [ "$auction1_addr" != "" ]; then
+        ADDRESSES["Auction1"]=$auction1_addr
+        log_success "    Auction 1 created: $auction1_addr (Crowdsale)"
 
-        # Have traders commit to the now-active sale
+        # Advance time to make it active
+        log_info "    Advancing time to activate auction..."
+        ~/.foundry/bin/cast rpc evm_increaseTime 150 --rpc-url $RPC_URL > /dev/null 2>&1
+        ~/.foundry/bin/cast rpc evm_mine --rpc-url $RPC_URL > /dev/null 2>&1
+
+        # Have traders commit ETH
         log_info "    Adding test commitments..."
-        cast send $launch1 \
-            "commit(uint256)" \
-            0 \
+        ~/.foundry/bin/cast send $auction1_addr \
+            "commitEth(address,bool)" \
+            ${TRADER_ADDRS[0]} \
+            true \
             --value 5ether \
             --private-key ${TRADER_KEYS[0]} \
             --rpc-url $RPC_URL > /dev/null 2>&1 && log_success "      Trader 1 committed 5 ETH"
 
-        cast send $launch1 \
-            "commit(uint256)" \
-            0 \
+        ~/.foundry/bin/cast send $auction1_addr \
+            "commitEth(address,bool)" \
+            ${TRADER_ADDRS[1]} \
+            true \
             --value 3ether \
             --private-key ${TRADER_KEYS[1]} \
             --rpc-url $RPC_URL > /dev/null 2>&1 && log_success "      Trader 2 committed 3 ETH"
     else
-        log_error "    Failed to create Launch 1"
+        log_error "    Failed to create Auction 1"
     fi
 
     # =========================================================================
-    # Launch 2: Upcoming Sale (not started yet)
+    # Auction 2: Upcoming Crowdsale (not started yet)
     # =========================================================================
-    log_info "  Creating Launch 2: Upcoming Sale..."
+    log_info "  Creating Auction 2: Upcoming Crowdsale..."
 
-    # Refresh current time after time manipulation
     local current_time2=$(cast block latest --json --rpc-url $RPC_URL | jq -r '.timestamp' | xargs printf "%d\n")
 
-    local sale2_amount=$(to_wei 50000 6)   # 50k tokens
-    local liquidity2_amount=$(to_wei 5000 6)  # 5k for liquidity
-    local start2=$((current_time2 + 3600))   # Starts in 1 hour
-    local end2=$((current_time2 + 172800))   # Ends in 48 hours
+    local sale2_tokens=$(to_wei 50000 18)  # 50k PHASOR
+    local start2=$((current_time2 + 3600))
+    local end2=$((current_time2 + 172800))
+    local rate2=500  # 500 tokens per ETH
+    local goal2=$(to_wei 5 18)  # 5 ETH goal
 
-    # Approve tokens (use shell arithmetic for addition)
-    local approve2_amount=$((sale2_amount + liquidity2_amount))
-    cast send $test_token1 \
+    ~/.foundry/bin/cast send $test_token \
         "approve(address,uint256)" \
-        $launchpad \
-        $approve2_amount \
+        $miso_market \
+        $sale2_tokens \
         --private-key $DEPLOYER_KEY \
         --rpc-url $RPC_URL > /dev/null 2>&1
 
-    local launch2=$(cast send $launchpad \
-        "createFairLaunch((address,address,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256))" \
-        "($test_token1,0x0000000000000000000000000000000000000000,$sale2_amount,$liquidity2_amount,$start2,$end2,$(to_wei 10 18),$(to_wei 50 18),0,0,3000)" \
-        --private-key $DEPLOYER_KEY \
-        --rpc-url $RPC_URL \
-        --json 2>/dev/null | jq -r '.logs[0].topics[1]' | xargs cast parse-bytes32-address 2>/dev/null)
+    local crowdsale2_data=$(cast abi-encode "f(address,address,address,uint256,uint256,uint256,uint256,uint256,address,address,address)" \
+        $DEPLOYER_ADDR \
+        $test_token \
+        $ETH_ADDRESS \
+        $sale2_tokens \
+        $start2 \
+        $end2 \
+        $rate2 \
+        $goal2 \
+        $DEPLOYER_ADDR \
+        "0x0000000000000000000000000000000000000000" \
+        $DEPLOYER_ADDR)
 
-    if [ -n "$launch2" ] && [ "$launch2" != "null" ]; then
-        ADDRESSES["Launch2"]=$launch2
-        log_success "    Launch 2 created: $launch2 (Upcoming, 10-50 ETH caps)"
-    else
-        log_error "    Failed to create Launch 2"
-    fi
-
-    # =========================================================================
-    # Launch 3: Vesting Sale (with 30-day vesting, 7-day cliff)
-    # =========================================================================
-    log_info "  Creating Launch 3: Vesting Sale..."
-
-    # Refresh current time after previous time manipulation
-    local current_time3=$(cast block latest --json --rpc-url $RPC_URL | jq -r '.timestamp' | xargs printf "%d\n")
-
-    local sale3_amount=$(to_wei 200000 6)  # 200k tokens
-    local liquidity3_amount=$(to_wei 20000 6)  # 20k for liquidity
-    local start3=$((current_time3 + 300))   # Starts in 5 minutes
-    local end3=$((current_time3 + 259200))  # Ends in 3 days
-    local vesting_duration=$((30 * 86400))  # 30 days
-    local vesting_cliff=$((7 * 86400))      # 7 day cliff
-
-    # Approve tokens (use shell arithmetic for addition)
-    local approve3_amount=$((sale3_amount + liquidity3_amount))
-    cast send $test_token1 \
-        "approve(address,uint256)" \
-        $launchpad \
-        $approve3_amount \
+    # templateId 2 = Crowdsale
+    ~/.foundry/bin/cast send $miso_market \
+        "createMarket(uint256,address,uint256,address,bytes)" \
+        2 \
+        $test_token \
+        $sale2_tokens \
+        "0x0000000000000000000000000000000000000000" \
+        $crowdsale2_data \
         --private-key $DEPLOYER_KEY \
         --rpc-url $RPC_URL > /dev/null 2>&1
 
-    local launch3=$(cast send $launchpad \
-        "createFairLaunch((address,address,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256))" \
-        "($test_token1,0x0000000000000000000000000000000000000000,$sale3_amount,$liquidity3_amount,$start3,$end3,0,0,$vesting_duration,$vesting_cliff,5000)" \
-        --private-key $DEPLOYER_KEY \
-        --rpc-url $RPC_URL \
-        --json 2>/dev/null | jq -r '.logs[0].topics[1]' | xargs cast parse-bytes32-address 2>/dev/null)
-
-    if [ -n "$launch3" ] && [ "$launch3" != "null" ]; then
-        ADDRESSES["Launch3"]=$launch3
-        log_success "    Launch 3 created: $launch3 (With 30-day vesting, 7-day cliff)"
-
-        # Add some commitments
-        cast send $launch3 \
-            "commit(uint256)" \
-            0 \
-            --value 10ether \
-            --private-key ${TRADER_KEYS[2]} \
-            --rpc-url $RPC_URL > /dev/null 2>&1 && log_success "      Trader 3 committed 10 ETH"
-    else
-        log_error "    Failed to create Launch 3"
-    fi
-
-    # Print launch count
-    local launch_count=$(cast call $launchpad "launchCount()(uint256)" --rpc-url $RPC_URL)
-    log_success "Test launches setup complete: $launch_count launches created"
+    local auction_count=$(cast call $miso_market "numberOfAuctions()(uint256)" --rpc-url $RPC_URL)
+    log_success "  Test auctions setup complete: $auction_count auctions created"
 }
 
 # ============================================================================
@@ -646,7 +586,7 @@ execute_swap_on_router() {
     local trader_addr=$5
 
     # Approve token_in for this swap (do it each time to avoid balance issues)
-    cast send ${ADDRESSES[$token_in]} \
+    ~/.foundry/bin/cast send ${ADDRESSES[$token_in]} \
         "approve(address,uint256)" \
         ${ADDRESSES[Router]} \
         $amount_in \
@@ -664,7 +604,7 @@ execute_swap_on_router() {
     # Execute swap with deadline far in the future (use a very large number to avoid expiration)
     # Since we're manipulating blockchain time, we can't rely on system time
     local deadline=9999999999  # Year 2286 - far enough in the future
-    cast send ${ADDRESSES[Router]} \
+    ~/.foundry/bin/cast send ${ADDRESSES[Router]} \
         "swapExactTokensForTokens(uint256,uint256,address[],address,uint256)" \
         $amount_in \
         $amount_out_min \
@@ -750,20 +690,20 @@ generate_historical_data() {
         local trader_key=${TRADER_KEYS[$i]}
 
         log_info "    Trader $((i+1)): Wrapping ETH to WMON and WETH..."
-        cast send ${ADDRESSES[WMON]} "deposit()" --value 200ether --private-key $trader_key --rpc-url $RPC_URL > /dev/null 2>&1
+        ~/.foundry/bin/cast send ${ADDRESSES[WMON]} "deposit()" --value 200ether --private-key $trader_key --rpc-url $RPC_URL > /dev/null 2>&1
 
-        cast send ${ADDRESSES[WETH]} "deposit()" --value 20ether --private-key $trader_key --rpc-url $RPC_URL > /dev/null 2>&1
+        ~/.foundry/bin/cast send ${ADDRESSES[WETH]} "deposit()" --value 20ether --private-key $trader_key --rpc-url $RPC_URL > /dev/null 2>&1
 
         log_info "    Trader $((i+1)): Transferring tokens..."
-        cast send ${ADDRESSES[USDC]} "transfer(address,uint256)" $trader_addr $(to_wei 200000 6) --private-key $DEPLOYER_KEY --rpc-url $RPC_URL > /dev/null 2>&1
+        ~/.foundry/bin/cast send ${ADDRESSES[USDC]} "transfer(address,uint256)" $trader_addr $(to_wei 200000 6) --private-key $DEPLOYER_KEY --rpc-url $RPC_URL > /dev/null 2>&1
 
-        cast send ${ADDRESSES[USDT]} "transfer(address,uint256)" $trader_addr $(to_wei 200000 6) --private-key $DEPLOYER_KEY --rpc-url $RPC_URL > /dev/null 2>&1
+        ~/.foundry/bin/cast send ${ADDRESSES[USDT]} "transfer(address,uint256)" $trader_addr $(to_wei 200000 6) --private-key $DEPLOYER_KEY --rpc-url $RPC_URL > /dev/null 2>&1
 
-        cast send ${ADDRESSES[WBTC]} "transfer(address,uint256)" $trader_addr $(to_wei 1 8) --private-key $DEPLOYER_KEY --rpc-url $RPC_URL > /dev/null 2>&1
+        ~/.foundry/bin/cast send ${ADDRESSES[WBTC]} "transfer(address,uint256)" $trader_addr $(to_wei 1 8) --private-key $DEPLOYER_KEY --rpc-url $RPC_URL > /dev/null 2>&1
 
-        cast send ${ADDRESSES[SOL]} "transfer(address,uint256)" $trader_addr $(to_wei 200 9) --private-key $DEPLOYER_KEY --rpc-url $RPC_URL > /dev/null 2>&1
+        ~/.foundry/bin/cast send ${ADDRESSES[SOL]} "transfer(address,uint256)" $trader_addr $(to_wei 200 9) --private-key $DEPLOYER_KEY --rpc-url $RPC_URL > /dev/null 2>&1
 
-        cast send ${ADDRESSES[FOLKS]} "transfer(address,uint256)" $trader_addr $(to_wei 20000 6) --private-key $DEPLOYER_KEY --rpc-url $RPC_URL > /dev/null 2>&1
+        ~/.foundry/bin/cast send ${ADDRESSES[FOLKS]} "transfer(address,uint256)" $trader_addr $(to_wei 20000 6) --private-key $DEPLOYER_KEY --rpc-url $RPC_URL > /dev/null 2>&1
     done
 
     log_info "  Token distribution complete!"
@@ -807,7 +747,7 @@ generate_historical_data() {
         # Execute swaps for this day
         for swap_num in $(seq 1 $SWAPS_PER_DAY); do
             # Advance time forward by TIME_PER_SWAP seconds
-            cast rpc evm_increaseTime $TIME_PER_SWAP --rpc-url $RPC_URL > /dev/null 2>&1
+            ~/.foundry/bin/cast rpc evm_increaseTime $TIME_PER_SWAP --rpc-url $RPC_URL > /dev/null 2>&1
 
             # Execute random swap and track result
             if execute_random_swap; then
@@ -817,7 +757,7 @@ generate_historical_data() {
             fi
 
             # Mine block with new timestamp
-            cast rpc evm_mine --rpc-url $RPC_URL > /dev/null 2>&1
+            ~/.foundry/bin/cast rpc evm_mine --rpc-url $RPC_URL > /dev/null 2>&1
 
             swap_count=$((swap_count + 1))
         done
@@ -851,12 +791,18 @@ NEXT_PUBLIC_DEFAULT_FACTORY_ADDRESS=${ADDRESSES[Factory]}
 NEXT_PUBLIC_DEFAULT_ROUTER_ADDRESS=${ADDRESSES[Router]}
 NEXT_PUBLIC_DEFAULT_WMON_ADDRESS=${ADDRESSES[WMON]}
 
-# PHASOR Ecosystem
-NEXT_PUBLIC_PHASOR_TOKEN_ADDRESS=${ADDRESSES[PhasorToken]}
+# Velodrome Fork - Governance & Staking
+NEXT_PUBLIC_PHASOR_TOKEN_ADDRESS=${ADDRESSES[Phasor]}
 NEXT_PUBLIC_VOTING_ESCROW_ADDRESS=${ADDRESSES[VotingEscrow]}
+NEXT_PUBLIC_VOTER_ADDRESS=${ADDRESSES[Voter]}
+NEXT_PUBLIC_GAUGE_ADDRESS=${ADDRESSES[Gauge]}
 NEXT_PUBLIC_REWARDS_DISTRIBUTOR_ADDRESS=${ADDRESSES[RewardsDistributor]}
-NEXT_PUBLIC_STAKING_REWARDS_ADDRESS=${ADDRESSES[StakingRewards]}
-NEXT_PUBLIC_LAUNCHPAD_FACTORY_ADDRESS=${ADDRESSES[LaunchpadFactory]}
+NEXT_PUBLIC_MINTER_ADDRESS=${ADDRESSES[Minter]}
+
+# MISO Launchpad (SushiSwap Fork)
+NEXT_PUBLIC_MISO_ACCESS_CONTROLS_ADDRESS=${ADDRESSES[MISOAccessControls]}
+NEXT_PUBLIC_MISO_MARKET_ADDRESS=${ADDRESSES[MISOMarket]}
+NEXT_PUBLIC_MISO_LAUNCHER_ADDRESS=${ADDRESSES[MISOLauncher]}
 
 # Subgraph URLs
 NEXT_PUBLIC_SUBGRAPH_URL=http://127.0.0.1:8000/subgraphs/name/phasor-v2
@@ -889,7 +835,7 @@ const addresses = {
     WBTC: '${ADDRESSES[WBTC]}',
     SOL: '${ADDRESSES[SOL]}',
     FOLKS: '${ADDRESSES[FOLKS]}',
-    PHASOR: '${ADDRESSES[PhasorToken]}'
+    PHASOR: '${ADDRESSES[Phasor]}'
 };
 
 const tokenList = {
@@ -1138,12 +1084,22 @@ print_summary() {
     echo -e "  Factory:  ${ADDRESSES[Factory]}"
     echo -e "  Router:   ${ADDRESSES[Router]}"
     echo ""
-    echo -e "${CYAN}${BOLD}PHASOR Ecosystem:${NC}"
-    echo -e "  PhasorToken:         ${ADDRESSES[PhasorToken]}"
+    echo -e "${CYAN}${BOLD}Velodrome Fork - ve(3,3) Governance:${NC}"
+    echo -e "  Phasor Token:        ${ADDRESSES[Phasor]}"
     echo -e "  VotingEscrow:        ${ADDRESSES[VotingEscrow]}"
+    echo -e "  Voter:               ${ADDRESSES[Voter]}"
     echo -e "  RewardsDistributor:  ${ADDRESSES[RewardsDistributor]}"
-    echo -e "  StakingRewards:      ${ADDRESSES[StakingRewards]}"
-    echo -e "  LaunchpadFactory:    ${ADDRESSES[LaunchpadFactory]}"
+    echo -e "  Minter:              ${ADDRESSES[Minter]}"
+    echo ""
+    echo -e "${CYAN}${BOLD}MISO Launchpad (SushiSwap Fork):${NC}"
+    echo -e "  MISOAccessControls:  ${ADDRESSES[MISOAccessControls]}"
+    echo -e "  MISOMarket:          ${ADDRESSES[MISOMarket]}"
+    echo -e "  MISOLauncher:        ${ADDRESSES[MISOLauncher]}"
+    echo -e "  BatchAuction:        ${ADDRESSES[BatchAuction]}"
+    echo -e "  Crowdsale:           ${ADDRESSES[Crowdsale]}"
+    echo -e "  DutchAuction:        ${ADDRESSES[DutchAuction]}"
+    echo -e "  HyperbolicAuction:   ${ADDRESSES[HyperbolicAuction]}"
+    echo -e "  PostAuctionLauncher: ${ADDRESSES[PostAuctionLauncher]}"
     echo ""
     echo -e "${CYAN}${BOLD}Tokens Deployed (8):${NC}"
     echo -e "  WMON:     ${ADDRESSES[WMON]} (18 decimals)"
@@ -1153,7 +1109,7 @@ print_summary() {
     echo -e "  WBTC:     ${ADDRESSES[WBTC]} (8 decimals)"
     echo -e "  SOL:      ${ADDRESSES[SOL]} (9 decimals)"
     echo -e "  FOLKS:    ${ADDRESSES[FOLKS]} (6 decimals)"
-    echo -e "  PHASOR:   ${ADDRESSES[PhasorToken]} (18 decimals)"
+    echo -e "  PHASOR:   ${ADDRESSES[Phasor]} (18 decimals)"
     echo ""
     echo -e "${CYAN}${BOLD}Liquidity Pools Created (6):${NC}"
     echo -e "  WMON/USDC  - 3,500 WMON : 7M USDC"
@@ -1162,24 +1118,6 @@ print_summary() {
     echo -e "  WMON/WBTC  - 1,200 WMON : 24 WBTC"
     echo -e "  WMON/SOL   - 300 WMON : 6,000 SOL"
     echo -e "  WMON/FOLKS - 200 WMON : 400k FOLKS"
-    echo ""
-    echo -e "${CYAN}${BOLD}Staking System:${NC}"
-    echo -e "  StakingRewards Pool: WMON-USDC LP (100% allocation)"
-    echo -e "  Time Multiplier: 1x → 3x over 90 days"
-    echo -e "  ve-Boost: up to 2.5x based on vePHASOR"
-    echo -e "  Max Combined Boost: 7.5x (3x time × 2.5x ve)"
-    echo -e "  Weekly Emission: 700,000 PHASOR"
-    echo ""
-    echo -e "${CYAN}${BOLD}Test Fair Launches:${NC}"
-    if [ -n "${ADDRESSES[Launch1]}" ]; then
-        echo -e "  Launch 1: ${ADDRESSES[Launch1]} (Active, 100 ETH hard cap)"
-    fi
-    if [ -n "${ADDRESSES[Launch2]}" ]; then
-        echo -e "  Launch 2: ${ADDRESSES[Launch2]} (Upcoming, 10-50 ETH caps)"
-    fi
-    if [ -n "${ADDRESSES[Launch3]}" ]; then
-        echo -e "  Launch 3: ${ADDRESSES[Launch3]} (With 30-day vesting)"
-    fi
     echo ""
     echo -e "${CYAN}${BOLD}Configuration Updated:${NC}"
     echo -e "  ${GREEN}✓${NC} Frontend .env.local"

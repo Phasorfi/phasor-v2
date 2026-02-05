@@ -1,61 +1,39 @@
-// StakingRewards ABI
-// Source: packages/phasor-contracts/contracts/staking/StakingRewards.sol
+// Gauge ABI (Velodrome V2)
+// Replaces old StakingRewards - uses deposit/withdraw/getReward pattern
+// Source: packages/velodrome-fork/contracts/gauges/Gauge.sol
 
-export const STAKING_REWARDS_ABI = [
+export const GAUGE_ABI = [
   // Constants
   {
     inputs: [],
-    name: "MIN_MULTIPLIER",
+    name: "DURATION",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
   {
     inputs: [],
-    name: "MAX_MULTIPLIER",
+    name: "TIME_MULTIPLIER_MIN",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
   {
     inputs: [],
-    name: "BONUS_PERIOD",
+    name: "TIME_MULTIPLIER_MAX",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
   {
     inputs: [],
-    name: "MAX_VE_BOOST",
+    name: "TIME_MULTIPLIER_PERIOD",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
 
-  // Immutable state
-  {
-    inputs: [],
-    name: "rewardsToken",
-    outputs: [{ internalType: "address", name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "votingEscrow",
-    outputs: [{ internalType: "address", name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "rewardsDistributor",
-    outputs: [{ internalType: "address", name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-
-  // Mutable state
+  // Immutable / state views
   {
     inputs: [],
     name: "stakingToken",
@@ -65,14 +43,30 @@ export const STAKING_REWARDS_ABI = [
   },
   {
     inputs: [],
-    name: "rewardsDuration",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    name: "rewardToken",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
     stateMutability: "view",
     type: "function",
   },
   {
     inputs: [],
-    name: "periodFinish",
+    name: "voter",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "isPool",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+
+  // Global state
+  {
+    inputs: [],
+    name: "totalSupply",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
@@ -86,14 +80,28 @@ export const STAKING_REWARDS_ABI = [
   },
   {
     inputs: [],
-    name: "totalSupply",
+    name: "periodFinish",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
   {
     inputs: [],
-    name: "totalEffectiveSupply",
+    name: "rewardPerToken",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "lastTimeRewardApplicable",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "left",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
@@ -109,25 +117,8 @@ export const STAKING_REWARDS_ABI = [
   },
   {
     inputs: [{ internalType: "address", name: "account", type: "address" }],
-    name: "effectiveBalanceOf",
+    name: "earned",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "address", name: "account", type: "address" }],
-    name: "getUserDeposits",
-    outputs: [
-      {
-        components: [
-          { internalType: "uint128", name: "amount", type: "uint128" },
-          { internalType: "uint48", name: "timestamp", type: "uint48" },
-        ],
-        internalType: "struct IStakingRewards.Deposit[]",
-        name: "",
-        type: "tuple[]",
-      },
-    ],
     stateMutability: "view",
     type: "function",
   },
@@ -139,45 +130,8 @@ export const STAKING_REWARDS_ABI = [
     type: "function",
   },
   {
-    inputs: [{ internalType: "address", name: "account", type: "address" }],
-    name: "getVeBoost",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "address", name: "account", type: "address" }],
-    name: "getTotalMultiplier",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
     inputs: [{ internalType: "address", name: "", type: "address" }],
-    name: "userVeTokenId",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-
-  // Rewards view functions
-  {
-    inputs: [],
-    name: "lastTimeRewardApplicable",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "rewardPerToken",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "address", name: "account", type: "address" }],
-    name: "earned",
+    name: "userFirstStakeTime",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
@@ -185,39 +139,22 @@ export const STAKING_REWARDS_ABI = [
 
   // Write functions
   {
-    inputs: [
-      { internalType: "uint256", name: "amount", type: "uint256" },
-      { internalType: "uint256", name: "veTokenId", type: "uint256" },
-    ],
-    name: "stake",
+    inputs: [{ internalType: "uint256", name: "_amount", type: "uint256" }],
+    name: "deposit",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
   },
   {
-    inputs: [{ internalType: "uint256", name: "amount", type: "uint256" }],
+    inputs: [{ internalType: "uint256", name: "_amount", type: "uint256" }],
     name: "withdraw",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
   },
   {
-    inputs: [],
+    inputs: [{ internalType: "address", name: "_account", type: "address" }],
     name: "getReward",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "exit",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "uint256", name: "veTokenId", type: "uint256" }],
-    name: "updateVeTokenId",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -227,39 +164,31 @@ export const STAKING_REWARDS_ABI = [
   {
     anonymous: false,
     inputs: [
-      { indexed: true, internalType: "address", name: "user", type: "address" },
-      { indexed: false, internalType: "uint256", name: "amount", type: "uint256" },
-      { indexed: false, internalType: "uint256", name: "veTokenId", type: "uint256" },
-    ],
-    name: "Staked",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, internalType: "address", name: "user", type: "address" },
+      { indexed: true, internalType: "address", name: "from", type: "address" },
       { indexed: false, internalType: "uint256", name: "amount", type: "uint256" },
     ],
-    name: "Withdrawn",
+    name: "Deposit",
     type: "event",
   },
   {
     anonymous: false,
     inputs: [
-      { indexed: true, internalType: "address", name: "user", type: "address" },
-      { indexed: false, internalType: "uint256", name: "reward", type: "uint256" },
+      { indexed: true, internalType: "address", name: "from", type: "address" },
+      { indexed: false, internalType: "uint256", name: "amount", type: "uint256" },
     ],
-    name: "RewardPaid",
+    name: "Withdraw",
     type: "event",
   },
   {
     anonymous: false,
     inputs: [
-      { indexed: true, internalType: "address", name: "user", type: "address" },
-      { indexed: false, internalType: "uint256", name: "oldTokenId", type: "uint256" },
-      { indexed: false, internalType: "uint256", name: "newTokenId", type: "uint256" },
+      { indexed: true, internalType: "address", name: "from", type: "address" },
+      { indexed: false, internalType: "uint256", name: "amount", type: "uint256" },
     ],
-    name: "VeTokenIdUpdated",
+    name: "ClaimRewards",
     type: "event",
   },
 ] as const;
+
+// Backward-compatible alias
+export const STAKING_REWARDS_ABI = GAUGE_ABI;

@@ -1,186 +1,177 @@
-// FairLaunch ABI
-// Source: packages/phasor-contracts/contracts/launchpad/FairLaunch.sol
+// MISO Auction ABI (shared interface for Crowdsale, DutchAuction, BatchAuction, HyperbolicAuction)
+// Source: packages/miso-fork/contracts/auctions/
 
-export const FAIR_LAUNCH_ABI = [
-  // Configuration view functions
+export const MISO_AUCTION_ABI = [
+  // Base information
   {
     inputs: [],
-    name: "saleInfo",
+    name: "getBaseInformation",
     outputs: [
-      {
-        components: [
-          { internalType: "address", name: "saleToken", type: "address" },
-          { internalType: "address", name: "paymentToken", type: "address" },
-          { internalType: "uint256", name: "totalTokens", type: "uint256" },
-          { internalType: "uint256", name: "startTime", type: "uint256" },
-          { internalType: "uint256", name: "endTime", type: "uint256" },
-          { internalType: "uint256", name: "softCap", type: "uint256" },
-          { internalType: "uint256", name: "hardCap", type: "uint256" },
-          { internalType: "uint256", name: "vestingDuration", type: "uint256" },
-          { internalType: "uint256", name: "vestingCliff", type: "uint256" },
-        ],
-        internalType: "struct FairLaunch.SaleInfo",
-        name: "",
-        type: "tuple",
-      },
+      { internalType: "address", name: "token", type: "address" },
+      { internalType: "uint256", name: "tokenSupply", type: "uint256" },
+      { internalType: "uint256", name: "startTime", type: "uint256" },
+      { internalType: "uint256", name: "endTime", type: "uint256" },
+      { internalType: "bool", name: "finalized", type: "bool" },
     ],
     stateMutability: "view",
     type: "function",
   },
   {
     inputs: [],
-    name: "saleStatus",
-    outputs: [
-      {
-        components: [
-          { internalType: "uint256", name: "totalRaised", type: "uint256" },
-          { internalType: "uint256", name: "totalParticipants", type: "uint256" },
-          { internalType: "bool", name: "finalized", type: "bool" },
-          { internalType: "bool", name: "cancelled", type: "bool" },
-        ],
-        internalType: "struct FairLaunch.SaleStatus",
-        name: "",
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "creator",
-    outputs: [{ internalType: "address", name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "router",
-    outputs: [{ internalType: "address", name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "factory",
-    outputs: [{ internalType: "address", name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "weth",
-    outputs: [{ internalType: "address", name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "liquidityBps",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "platformFeeRecipient",
-    outputs: [{ internalType: "address", name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "platformFeeBps",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "tokensForLiquidity",
+    name: "getTotalTokens",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
 
-  // User data view functions
+  // Token / payment
   {
-    inputs: [{ internalType: "address", name: "user", type: "address" }],
+    inputs: [],
+    name: "auctionToken",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "paymentCurrency",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "wallet",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+
+  // Status
+  {
+    inputs: [],
+    name: "auctionSuccessful",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "auctionEnded",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "finalized",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "tokenPrice",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+
+  // Market status (commitments total)
+  {
+    inputs: [],
+    name: "commitmentsTotal",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+
+  // Crowdsale-specific
+  {
+    inputs: [],
+    name: "goal",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "rate",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+
+  // ve-gating
+  {
+    inputs: [],
+    name: "votingEscrow",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "minVeBalance",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+
+  // Per-user views
+  {
+    inputs: [{ internalType: "address", name: "_user", type: "address" }],
     name: "commitments",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
   {
-    inputs: [{ internalType: "address", name: "user", type: "address" }],
+    inputs: [{ internalType: "address", name: "_user", type: "address" }],
     name: "claimed",
-    outputs: [{ internalType: "bool", name: "", type: "bool" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "address", name: "user", type: "address" }],
-    name: "vestingWallets",
-    outputs: [{ internalType: "address", name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "address", name: "user", type: "address" }],
-    name: "getAllocation",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-
-  // State check view functions
-  {
-    inputs: [],
-    name: "getCurrentPrice",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
   {
-    inputs: [],
-    name: "isActive",
-    outputs: [{ internalType: "bool", name: "", type: "bool" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "softCapReached",
-    outputs: [{ internalType: "bool", name: "", type: "bool" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "hardCapReached",
-    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    inputs: [{ internalType: "address", name: "_user", type: "address" }],
+    name: "tokensClaimable",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
 
   // Write functions
   {
-    inputs: [{ internalType: "uint256", name: "amount", type: "uint256" }],
-    name: "commit",
+    inputs: [
+      { internalType: "address", name: "_beneficiary", type: "address" },
+      { internalType: "bool", name: "_revertOnFailure", type: "bool" },
+    ],
+    name: "commitEth",
     outputs: [],
     stateMutability: "payable",
     type: "function",
   },
   {
-    inputs: [],
-    name: "claim",
+    inputs: [
+      { internalType: "uint256", name: "_amount", type: "uint256" },
+      { internalType: "bool", name: "_revertOnFailure", type: "bool" },
+    ],
+    name: "commitTokens",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
   },
   {
     inputs: [],
-    name: "withdraw",
+    name: "withdrawTokens",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "_beneficiary", type: "address" }],
+    name: "withdrawTokens",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -194,7 +185,7 @@ export const FAIR_LAUNCH_ABI = [
   },
   {
     inputs: [],
-    name: "cancel",
+    name: "cancelAuction",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -204,46 +195,25 @@ export const FAIR_LAUNCH_ABI = [
   {
     anonymous: false,
     inputs: [
-      { indexed: true, internalType: "address", name: "user", type: "address" },
-      { indexed: false, internalType: "uint256", name: "amount", type: "uint256" },
-      { indexed: false, internalType: "uint256", name: "totalCommitment", type: "uint256" },
+      { indexed: true, internalType: "address", name: "addr", type: "address" },
+      { indexed: false, internalType: "uint256", name: "commitment", type: "uint256" },
     ],
-    name: "Committed",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, internalType: "address", name: "user", type: "address" },
-      { indexed: false, internalType: "uint256", name: "tokenAmount", type: "uint256" },
-      { indexed: false, internalType: "address", name: "vestingWallet", type: "address" },
-    ],
-    name: "Claimed",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, internalType: "address", name: "user", type: "address" },
-      { indexed: false, internalType: "uint256", name: "amount", type: "uint256" },
-    ],
-    name: "Withdrawn",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: false, internalType: "uint256", name: "totalRaised", type: "uint256" },
-      { indexed: false, internalType: "uint256", name: "totalParticipants", type: "uint256" },
-      { indexed: false, internalType: "uint256", name: "liquidityAdded", type: "uint256" },
-    ],
-    name: "SaleFinalized",
+    name: "AddedCommitment",
     type: "event",
   },
   {
     anonymous: false,
     inputs: [],
-    name: "SaleCancelled",
+    name: "AuctionFinalized",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [],
+    name: "AuctionCancelled",
     type: "event",
   },
 ] as const;
+
+// Backward-compatible alias
+export const FAIR_LAUNCH_ABI = MISO_AUCTION_ABI;

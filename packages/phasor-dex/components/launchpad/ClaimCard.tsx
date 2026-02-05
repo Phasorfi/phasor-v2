@@ -17,13 +17,14 @@ interface ClaimCardProps {
 export function ClaimCard({ launchAddress, isRefund = false, onSuccess }: ClaimCardProps) {
   const { isConnected } = useAccount();
   const {
-    launchInfo, userLaunchInfo, claim, withdraw, isContributing, isConfirming, error,
+    userLaunchInfo, claim, withdraw, isContributing, isConfirming, error,
   } = useFairLaunch(launchAddress);
 
   const hasCommitment = userLaunchInfo && userLaunchInfo.commitment > BigInt(0);
-  const hasClaimed = userLaunchInfo?.claimed ?? false;
+  const hasClaimed = userLaunchInfo ? userLaunchInfo.claimed > BigInt(0) : false;
 
   const handleClaim = async () => {
+    // In MISO, withdrawTokens handles both claim and refund
     if (isRefund) {
       await withdraw();
     } else {
@@ -50,8 +51,8 @@ export function ClaimCard({ launchAddress, isRefund = false, onSuccess }: ClaimC
         </CardTitle>
         <CardDescription>
           {isRefund
-            ? "The sale did not reach its soft cap. Withdraw your contribution."
-            : "Claim your allocated tokens from the successful sale."}
+            ? "The auction was not successful. Withdraw your contribution."
+            : "Claim your allocated tokens from the successful auction."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -61,7 +62,7 @@ export function ClaimCard({ launchAddress, isRefund = false, onSuccess }: ClaimC
           </div>
         ) : !hasCommitment ? (
           <div className="text-center py-4">
-            <p className="text-muted-foreground">You did not participate in this sale</p>
+            <p className="text-muted-foreground">You did not participate in this auction</p>
           </div>
         ) : hasClaimed ? (
           <div className="text-center py-8">
@@ -76,12 +77,12 @@ export function ClaimCard({ launchAddress, isRefund = false, onSuccess }: ClaimC
             {/* Claim Info */}
             <div className="p-6 rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 text-center">
               <p className="text-sm text-muted-foreground mb-2">
-                {isRefund ? "Refund Amount" : "Your Allocation"}
+                {isRefund ? "Refund Amount" : "Tokens Claimable"}
               </p>
               <p className="text-4xl font-bold">
                 {isRefund
                   ? parseFloat(formatUnits(userLaunchInfo?.commitment ?? BigInt(0), 18)).toFixed(4)
-                  : parseFloat(formatUnits(userLaunchInfo?.allocation ?? BigInt(0), 18)).toFixed(4)}
+                  : parseFloat(formatUnits(userLaunchInfo?.tokensClaimable ?? BigInt(0), 18)).toFixed(4)}
               </p>
               <p className="text-sm text-muted-foreground mt-1">
                 {isRefund ? "MON" : "tokens"}
@@ -89,23 +90,13 @@ export function ClaimCard({ launchAddress, isRefund = false, onSuccess }: ClaimC
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-muted-foreground">Your Commitment</p>
-                <p className="font-medium">
+            <div className="text-sm">
+              <div className="flex justify-between py-2">
+                <span className="text-muted-foreground">Your Commitment</span>
+                <span className="font-medium">
                   {parseFloat(formatUnits(userLaunchInfo?.commitment ?? BigInt(0), 18)).toFixed(4)}
-                </p>
+                </span>
               </div>
-              {!isRefund && (
-                <div>
-                  <p className="text-muted-foreground">Vesting</p>
-                  <p className="font-medium">
-                    {launchInfo?.saleInfo.vestingDuration
-                      ? `${Math.floor(launchInfo.saleInfo.vestingDuration / 86400)} days`
-                      : "None"}
-                  </p>
-                </div>
-              )}
             </div>
 
             {/* Error */}

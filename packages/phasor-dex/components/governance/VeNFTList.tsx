@@ -20,8 +20,8 @@ interface VeNFTListProps {
 function VeNFTCard({ veNFT, onRefresh }: { veNFT: VeNFT; onRefresh?: () => void }) {
   const { withdraw, isLocking, isConfirming, error } = useVotingEscrow();
   const now = Math.floor(Date.now() / 1000);
-  const isExpired = veNFT.locked.end <= now;
-  const timeRemaining = veNFT.locked.end - now;
+  const isExpired = !veNFT.locked.isPermanent && veNFT.locked.end <= now;
+  const timeRemaining = veNFT.locked.isPermanent ? Infinity : veNFT.locked.end - now;
 
   const formatTimeRemaining = (seconds: number): string => {
     if (seconds <= 0) return "Expired";
@@ -43,8 +43,8 @@ function VeNFTCard({ veNFT, onRefresh }: { veNFT: VeNFT; onRefresh?: () => void 
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">Lock #{veNFT.tokenId.toString()}</CardTitle>
-          <Badge variant={isExpired ? "destructive" : "secondary"}>
-            {isExpired ? "Expired" : formatTimeRemaining(timeRemaining)}
+          <Badge variant={isExpired ? "destructive" : veNFT.locked.isPermanent ? "default" : "secondary"}>
+            {isExpired ? "Expired" : veNFT.locked.isPermanent ? "Permanent" : formatTimeRemaining(timeRemaining)}
           </Badge>
         </div>
       </CardHeader>
@@ -66,25 +66,17 @@ function VeNFTCard({ veNFT, onRefresh }: { veNFT: VeNFT; onRefresh?: () => void 
               {parseFloat(formatUnits(veNFT.votingPower, 18)).toFixed(2)} vePHASOR
             </p>
           </div>
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground flex items-center gap-1">
-              <Clock className="h-3 w-3" /> Lock Start
-            </p>
-            <p className="font-medium text-sm">
-              {new Date(veNFT.locked.start * 1000).toLocaleDateString()}
-            </p>
-          </div>
-          <div className="space-y-1">
+          <div className="col-span-2 space-y-1">
             <p className="text-sm text-muted-foreground flex items-center gap-1">
               <Clock className="h-3 w-3" /> Unlock Date
             </p>
             <p className="font-medium text-sm">
-              {new Date(veNFT.locked.end * 1000).toLocaleDateString()}
+              {veNFT.locked.isPermanent ? "Permanent (no expiry)" : new Date(veNFT.locked.end * 1000).toLocaleDateString()}
             </p>
           </div>
         </div>
 
-        {isExpired && (
+        {isExpired && !veNFT.locked.isPermanent && (
           <Button
             className="w-full"
             variant="outline"
