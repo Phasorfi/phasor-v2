@@ -36,14 +36,16 @@ export const monad = defineChain({
 // TODO: Replace with your deployed contract addresses
 
 export const CONTRACTS = {
-  // Core Uniswap V2 contracts - from environment variables
-  FACTORY: process.env.NEXT_PUBLIC_DEFAULT_FACTORY_ADDRESS as Address,
+  // Core Velodrome Pool System contracts - from environment variables
+  FACTORY: process.env.NEXT_PUBLIC_DEFAULT_FACTORY_ADDRESS as Address,  // PoolFactory
+  POOL_FACTORY: (process.env.NEXT_PUBLIC_POOL_FACTORY_ADDRESS || process.env.NEXT_PUBLIC_DEFAULT_FACTORY_ADDRESS) as Address,
+  FACTORY_REGISTRY: process.env.NEXT_PUBLIC_FACTORY_REGISTRY_ADDRESS as Address,
   ROUTER: process.env.NEXT_PUBLIC_DEFAULT_ROUTER_ADDRESS as Address,
 
   // Wrapped MON (WMON) address
   WMON: (process.env.NEXT_PUBLIC_DEFAULT_WMON_ADDRESS || "0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701") as Address,
 
-  // PHASOR ecosystem contracts
+  // PHASOR ecosystem contracts (Velodrome ve(3,3))
   PHASOR_TOKEN: process.env.NEXT_PUBLIC_PHASOR_TOKEN_ADDRESS as Address,
   VOTING_ESCROW: process.env.NEXT_PUBLIC_VOTING_ESCROW_ADDRESS as Address,
   GAUGE: process.env.NEXT_PUBLIC_GAUGE_ADDRESS as Address,

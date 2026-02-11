@@ -306,6 +306,9 @@ export function useAddLiquidity(
       const isANative = tokenA.address === NATIVE_TOKEN.address;
       const isBNative = tokenB.address === NATIVE_TOKEN.address;
 
+      // Velodrome requires stable parameter (false for volatile pools)
+      const stable = false;
+
       if (isANative || isBNative) {
         const token = isANative ? tokenB : tokenA;
         const tokenAmount = isANative ? parsedAmountB : parsedAmountA;
@@ -318,7 +321,7 @@ export function useAddLiquidity(
           address: CONTRACTS.ROUTER,
           abi: ROUTER_ABI,
           functionName: "addLiquidityETH",
-          args: [token.address, tokenAmount, tokenMin, ethMin, account, txDeadline],
+          args: [token.address, stable, tokenAmount, tokenMin, ethMin, account, txDeadline],
           value: ethAmount,
           account,
         });
@@ -330,7 +333,7 @@ export function useAddLiquidity(
           address: CONTRACTS.ROUTER,
           abi: ROUTER_ABI,
           functionName: "addLiquidityETH",
-          args: [token.address, tokenAmount, tokenMin, ethMin, account, txDeadline],
+          args: [token.address, stable, tokenAmount, tokenMin, ethMin, account, txDeadline],
           value: ethAmount,
           gas: gasLimit,
         });
@@ -343,6 +346,7 @@ export function useAddLiquidity(
           args: [
             tokenA.address,
             tokenB.address,
+            stable,
             parsedAmountA,
             parsedAmountB,
             amountAMin,
@@ -363,6 +367,7 @@ export function useAddLiquidity(
           args: [
             tokenA.address,
             tokenB.address,
+            stable,
             parsedAmountA,
             parsedAmountB,
             amountAMin,

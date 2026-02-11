@@ -1,48 +1,57 @@
+"use client";
+
 import { useQuery } from "@apollo/client/react";
-import { useAccount, useReadContract } from "wagmi";
+import { useAccount, useChainId, useReadContract } from "wagmi";
 import { useMemo } from "react";
-import { Address, erc20Abi, parseUnits } from "viem";
-import { GET_USER_POSITIONS } from "@/lib/graphql/queries";
+import { Address, erc20Abi, formatUnits } from "viem";
+import { GET_USER_POSITIONS, GET_POOLS_BY_ADDRESSES, GET_TOKENS_BY_ADDRESSES } from "@/lib/graphql/queries";
 import { apolloClient } from "@/lib/apollo-client";
 import { UserPosition, Pool, Token } from "@/types";
 
-interface SubgraphToken {
+// Velodrome UserStatsPerPool schema
+interface VelodromeUserStats {
   id: string;
+  userAddress: string;
+  poolAddress: string;
+  chainId: number;
+  currentLiquidityUSD: string;
+  lpBalance: string;
+  totalLiquidityAddedUSD: string;
+  totalLiquidityAddedToken0: string;
+  totalLiquidityAddedToken1: string;
+  totalLiquidityRemovedUSD: string;
+  totalLiquidityRemovedToken0: string;
+  totalLiquidityRemovedToken1: string;
+  totalFeesContributedUSD: string;
+  numberOfSwaps: string;
+  totalSwapVolumeUSD: string;
+  firstActivityTimestamp: string;
+  lastActivityTimestamp: string;
+}
+
+interface VelodromePool {
+  id: string;
+  poolAddress: string;
+  name: string;
+  token0_address: string;
+  token1_address: string;
+  isStable: boolean;
+  reserve0: string;
+  reserve1: string;
+  totalLPTokenSupply: string;
+  totalLiquidityUSD: string;
+}
+
+interface VelodromeToken {
+  id: string;
+  address: string;
   symbol: string;
+  name: string;
   decimals: string;
 }
 
-interface SubgraphPair {
-  id: string;
-  token0: SubgraphToken;
-  token1: SubgraphToken;
-}
-
-interface SubgraphMint {
-  id: string;
-  timestamp: string;
-  pair: SubgraphPair;
-  to: string;
-  liquidity: string;
-  amount0: string;
-  amount1: string;
-  amountUSD: string;
-}
-
-interface SubgraphBurn {
-  id: string;
-  timestamp: string;
-  pair: SubgraphPair;
-  sender: string;
-  liquidity: string;
-  amount0: string;
-  amount1: string;
-  amountUSD: string;
-}
-
 interface GetUserPositionsData {
-  mints: SubgraphMint[];
-  burns: SubgraphBurn[];
+  UserStatsPerPool: VelodromeUserStats[];
 }
 
 interface UseUserPositionsFromSubgraphResult {
@@ -54,150 +63,157 @@ interface UseUserPositionsFromSubgraphResult {
 
 export function useUserPositionsFromSubgraph(): UseUserPositionsFromSubgraphResult {
   const { address: account } = useAccount();
+  const chainId = useChainId();
 
+  // Fetch user stats from Velodrome indexer
   const { data, loading, error, refetch } = useQuery<GetUserPositionsData>(
     GET_USER_POSITIONS,
     {
       client: apolloClient,
       variables: {
         user: account?.toLowerCase() || "",
+        chainId,
       },
       skip: !account,
-      // Remove pollInterval to prevent too many requests
+      fetchPolicy: "cache-first",
     }
   );
 
-  // Group mints and burns by pair to calculate net positions
-  const positionsByPair = useMemo(() => {
-    if (!data?.mints && !data?.burns) return new Map();
-
-    const pairMap = new Map<
-      string,
-      {
-        pair: SubgraphPair;
-        totalMinted: bigint;
-        totalBurned: bigint;
-        totalDepositedUSD: number;
-        totalWithdrawnUSD: number;
-      }
-    >();
-
-    // Process mints (deposits)
-    data?.mints?.forEach((mint) => {
-      const pairId = mint.pair.id.toLowerCase();
-      const existing: {
-        pair: SubgraphPair;
-        totalMinted: bigint;
-        totalBurned: bigint;
-        totalDepositedUSD: number;
-        totalWithdrawnUSD: number;
-      } = pairMap.get(pairId) || {
-        pair: mint.pair,
-        totalMinted: BigInt(0),
-        totalBurned: BigInt(0),
-        totalDepositedUSD: 0,
-        totalWithdrawnUSD: 0,
-      };
-
-      const newTotalMinted: bigint = existing.totalMinted + parseUnits(mint.liquidity, 18);
-
-      pairMap.set(pairId, {
-        pair: existing.pair,
-        totalMinted: newTotalMinted, // LP tokens are 18 decimals
-        totalBurned: existing.totalBurned,
-        totalDepositedUSD: existing.totalDepositedUSD + parseFloat(mint.amountUSD || "0"),
-        totalWithdrawnUSD: existing.totalWithdrawnUSD,
-      });
-    });
-
-    // Process burns (withdrawals)
-    data?.burns?.forEach((burn) => {
-      const pairId = burn.pair.id.toLowerCase();
-      const existing: {
-        pair: SubgraphPair;
-        totalMinted: bigint;
-        totalBurned: bigint;
-        totalDepositedUSD: number;
-        totalWithdrawnUSD: number;
-      } = pairMap.get(pairId) || {
-        pair: burn.pair,
-        totalMinted: BigInt(0),
-        totalBurned: BigInt(0),
-        totalDepositedUSD: 0,
-        totalWithdrawnUSD: 0,
-      };
-
-      const newTotalBurned: bigint = existing.totalBurned + parseUnits(burn.liquidity, 18);
-
-      pairMap.set(pairId, {
-        pair: existing.pair,
-        totalMinted: existing.totalMinted,
-        totalBurned: newTotalBurned, // LP tokens are 18 decimals
-        totalDepositedUSD: existing.totalDepositedUSD,
-        totalWithdrawnUSD: existing.totalWithdrawnUSD + parseFloat(burn.amountUSD || "0"),
-      });
-    });
-
-    return pairMap;
+  // Collect pool addresses to fetch pool details
+  const poolAddresses = useMemo(() => {
+    if (!data?.UserStatsPerPool) return [];
+    return data.UserStatsPerPool.map(stats => stats.poolAddress.toLowerCase());
   }, [data]);
 
-  // Convert to UserPosition array with current balances
+  // Fetch pool details for all user positions using batch query
+  const { data: poolsData } = useQuery(
+    GET_POOLS_BY_ADDRESSES,
+    {
+      client: apolloClient,
+      variables: {
+        poolAddresses,
+        chainId,
+      },
+      skip: poolAddresses.length === 0,
+      fetchPolicy: "cache-first",
+    }
+  );
+
+  // Collect token addresses from pools
+  const tokenAddresses = useMemo(() => {
+    if (!poolsData?.LiquidityPoolAggregator) return [];
+    const addresses = new Set<string>();
+    poolsData.LiquidityPoolAggregator.forEach((pool: VelodromePool) => {
+      addresses.add(pool.token0_address.toLowerCase());
+      addresses.add(pool.token1_address.toLowerCase());
+    });
+    return Array.from(addresses);
+  }, [poolsData]);
+
+  // Fetch token metadata
+  const { data: tokensData } = useQuery(
+    GET_TOKENS_BY_ADDRESSES,
+    {
+      client: apolloClient,
+      variables: {
+        addresses: tokenAddresses,
+        chainId,
+      },
+      skip: tokenAddresses.length === 0,
+      fetchPolicy: "cache-first",
+    }
+  );
+
+  // Build lookup maps
+  const poolMap = useMemo(() => {
+    const map = new Map<string, VelodromePool>();
+    if (poolsData?.LiquidityPoolAggregator) {
+      poolsData.LiquidityPoolAggregator.forEach((pool: VelodromePool) => {
+        map.set(pool.poolAddress.toLowerCase(), pool);
+      });
+    }
+    return map;
+  }, [poolsData]);
+
+  const tokenMap = useMemo(() => {
+    const map = new Map<string, VelodromeToken>();
+    if (tokensData?.Token) {
+      tokensData.Token.forEach((token: VelodromeToken) => {
+        map.set(token.address.toLowerCase(), token);
+      });
+    }
+    return map;
+  }, [tokensData]);
+
+  // Convert to UserPosition array
   const positions = useMemo(() => {
-    if (!account || positionsByPair.size === 0) return [];
+    if (!account || !data?.UserStatsPerPool) return [];
 
-    return Array.from(positionsByPair.entries())
-      .map(([pairId, positionData]: [string, {
-        pair: SubgraphPair;
-        totalMinted: bigint;
-        totalBurned: bigint;
-        totalDepositedUSD: number;
-        totalWithdrawnUSD: number;
-      }]): UserPosition | null => {
-        const netLiquidity: bigint = positionData.totalMinted - positionData.totalBurned;
+    return data.UserStatsPerPool
+      .filter(stats => BigInt(stats.lpBalance || '0') > BigInt(0))
+      .map((stats): UserPosition | null => {
+        const poolData = poolMap.get(stats.poolAddress.toLowerCase());
+        if (!poolData) return null;
 
-        // Skip positions with no remaining liquidity
-        if (netLiquidity <= BigInt(0)) return null;
+        const token0Data = tokenMap.get(poolData.token0_address.toLowerCase());
+        const token1Data = tokenMap.get(poolData.token1_address.toLowerCase());
 
         const token0: Token = {
-          address: positionData.pair.token0.id as Address,
-          symbol: positionData.pair.token0.symbol,
-          name: positionData.pair.token0.symbol,
-          decimals: parseInt(positionData.pair.token0.decimals),
+          address: poolData.token0_address as Address,
+          symbol: token0Data?.symbol || poolData.name.split('/')[0] || 'TKN0',
+          name: token0Data?.name || 'Unknown Token',
+          decimals: token0Data ? parseInt(token0Data.decimals) : 18,
         };
 
         const token1: Token = {
-          address: positionData.pair.token1.id as Address,
-          symbol: positionData.pair.token1.symbol,
-          name: positionData.pair.token1.symbol,
-          decimals: parseInt(positionData.pair.token1.decimals),
+          address: poolData.token1_address as Address,
+          symbol: token1Data?.symbol || poolData.name.split('/')[1] || 'TKN1',
+          name: token1Data?.name || 'Unknown Token',
+          decimals: token1Data ? parseInt(token1Data.decimals) : 18,
         };
+
+        const lpBalance = BigInt(stats.lpBalance || '0');
+        const totalSupply = BigInt(poolData.totalLPTokenSupply || '0');
+        const reserve0 = BigInt(poolData.reserve0 || '0');
+        const reserve1 = BigInt(poolData.reserve1 || '0');
+
+        // Calculate share and token amounts
+        const share = totalSupply > BigInt(0)
+          ? (Number(lpBalance) / Number(totalSupply)) * 100
+          : 0;
+
+        const token0Amount = totalSupply > BigInt(0)
+          ? (lpBalance * reserve0) / totalSupply
+          : BigInt(0);
+
+        const token1Amount = totalSupply > BigInt(0)
+          ? (lpBalance * reserve1) / totalSupply
+          : BigInt(0);
 
         const pool: Pool = {
-          address: pairId as Address,
+          address: stats.poolAddress as Address,
           token0,
           token1,
-          reserve0: BigInt(0), // Will be fetched from contract if needed
-          reserve1: BigInt(0),
-          totalSupply: BigInt(0),
+          reserve0,
+          reserve1,
+          totalSupply,
           fee: 30,
-          tvlUSD: 0,
+          tvlUSD: parseFloat(formatUnits(BigInt(poolData.totalLiquidityUSD || '0'), 18)),
           volume24hUSD: 0,
           apr: 0,
+          isStable: poolData.isStable,
         };
-
-        // Calculate share percentage (will be accurate once we fetch totalSupply from contract)
-        const share = 0; // Placeholder - will be calculated with real-time data
 
         return {
           pool,
-          liquidity: netLiquidity,
+          liquidity: lpBalance,
           share,
-          token0Amount: BigInt(0), // Will be calculated from reserves
-          token1Amount: BigInt(0),
+          token0Amount,
+          token1Amount,
         };
       })
       .filter((p): p is UserPosition => p !== null);
-  }, [account, positionsByPair]);
+  }, [account, data, poolMap, tokenMap]);
 
   return {
     positions,
@@ -225,9 +241,9 @@ export function useEnrichedPosition(position: UserPosition | null) {
         inputs: [],
         name: "getReserves",
         outputs: [
-          { name: "reserve0", type: "uint112" },
-          { name: "reserve1", type: "uint112" },
-          { name: "blockTimestampLast", type: "uint32" },
+          { name: "reserve0", type: "uint256" },
+          { name: "reserve1", type: "uint256" },
+          { name: "blockTimestampLast", type: "uint256" },
         ],
         stateMutability: "view",
         type: "function",
@@ -242,7 +258,7 @@ export function useEnrichedPosition(position: UserPosition | null) {
   return useMemo(() => {
     if (!position || !totalSupply || !reserves) return position;
 
-    const [reserve0, reserve1] = reserves as [bigint, bigint, number];
+    const [reserve0, reserve1] = reserves as [bigint, bigint, bigint];
     const supply = totalSupply as bigint;
 
     // Calculate user's share
@@ -251,8 +267,12 @@ export function useEnrichedPosition(position: UserPosition | null) {
       : 0;
 
     // Calculate token amounts based on share
-    const token0Amount = (position.liquidity * reserve0) / supply;
-    const token1Amount = (position.liquidity * reserve1) / supply;
+    const token0Amount = supply > BigInt(0)
+      ? (position.liquidity * reserve0) / supply
+      : BigInt(0);
+    const token1Amount = supply > BigInt(0)
+      ? (position.liquidity * reserve1) / supply
+      : BigInt(0);
 
     return {
       ...position,

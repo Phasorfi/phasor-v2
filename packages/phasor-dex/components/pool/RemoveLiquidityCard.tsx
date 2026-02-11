@@ -147,6 +147,7 @@ export function RemoveLiquidityCard() {
         return;
       }
 
+      // Velodrome requires stable parameter (false for volatile pools)
       removeLiq({
         address: CONTRACTS.ROUTER,
         abi: ROUTER_ABI,
@@ -154,6 +155,7 @@ export function RemoveLiquidityCard() {
         args: [
           selectedPosition.pool.token0.address,
           selectedPosition.pool.token1.address,
+          false, // stable param - false for volatile pools
           liquidityToRemove,
           amountAMin,
           amountBMin,

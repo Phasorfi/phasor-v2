@@ -17,9 +17,11 @@ interface UsePairResult {
 
 export function usePair(
   tokenA: Token | null,
-  tokenB: Token | null
+  tokenB: Token | null,
+  stable: boolean = false  // Default to volatile pools
 ): UsePairResult {
-  // Get pair address from factory
+  // Get pool address from factory
+  // Velodrome uses getPool(tokenA, tokenB, stable) instead of getPair(tokenA, tokenB)
   const {
     data: pairAddress,
     isLoading: isPairLoading,
@@ -27,8 +29,8 @@ export function usePair(
   } = useReadContract({
     address: CONTRACTS.FACTORY,
     abi: FACTORY_ABI,
-    functionName: "getPair",
-    args: tokenA && tokenB ? [tokenA.address, tokenB.address] : undefined,
+    functionName: "getPool",
+    args: tokenA && tokenB ? [tokenA.address, tokenB.address, stable] : undefined,
     query: {
       enabled: !!tokenA && !!tokenB,
     },
@@ -90,11 +92,13 @@ export function usePair(
 // Hook to get reserves in the correct order based on input tokens
 export function useOrderedReserves(
   tokenA: Token | null,
-  tokenB: Token | null
+  tokenB: Token | null,
+  stable: boolean = false  // Default to volatile pools
 ) {
   const { reserves, token0, isLoading, exists, pairAddress, totalSupply, refetch } = usePair(
     tokenA,
-    tokenB
+    tokenB,
+    stable
   );
 
   if (!tokenA || !tokenB || !reserves || !token0) {

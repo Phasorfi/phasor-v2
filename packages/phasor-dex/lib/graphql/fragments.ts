@@ -2,85 +2,123 @@
 
 import { gql } from "@apollo/client";
 
+// Token fields fragment for Velodrome/Envio schema
 export const TOKEN_FIELDS = gql`
   fragment TokenFields on Token {
     id
+    address
     symbol
     name
     decimals
-    derivedETH
-    tradeVolume
-    tradeVolumeUSD
-    untrackedVolumeUSD
-    totalLiquidity
-    txCount
+    chainId
+    pricePerUSDNew
+    lastUpdatedTimestamp
+    isWhitelisted
   }
 `;
 
-export const PAIR_FIELDS = gql`
-  fragment PairFields on Pair {
+// Pool fields fragment for Velodrome/Envio schema
+// Uses LiquidityPoolAggregator entity
+export const POOL_FIELDS = gql`
+  fragment PoolFields on LiquidityPoolAggregator {
     id
-    token0 {
-      ...TokenFields
-    }
-    token1 {
-      ...TokenFields
-    }
+    chainId
+    poolAddress
+    name
+    token0_id
+    token1_id
+    token0_address
+    token1_address
+    isStable
+    isCL
     reserve0
     reserve1
-    reserveUSD
-    totalSupply
-    trackedReserveETH
-    reserveETH
-    volumeUSD
-    untrackedVolumeUSD
+    totalLPTokenSupply
+    totalLiquidityUSD
+    totalVolume0
+    totalVolume1
+    totalVolumeUSD
+    totalFeesGenerated0
+    totalFeesGenerated1
+    totalFeesGeneratedUSD
+    numberOfSwaps
     token0Price
     token1Price
-    createdAtTimestamp
-    createdAtBlockNumber
-    txCount
-  }
-  ${TOKEN_FIELDS}
-`;
-
-export const PAIR_DAY_DATA_FIELDS = gql`
-  fragment PairDayDataFields on PairDayData {
-    id
-    date
-    pairAddress
-    token0 {
-      id
-      symbol
-    }
-    token1 {
-      id
-      symbol
-    }
-    reserve0
-    reserve1
-    totalSupply
-    reserveUSD
-    dailyVolumeToken0
-    dailyVolumeToken1
-    dailyVolumeUSD
-    dailyTxns
+    baseFee
+    currentFee
+    lastUpdatedTimestamp
+    lastSnapshotTimestamp
   }
 `;
 
-export const PAIR_HOUR_DATA_FIELDS = gql`
-  fragment PairHourDataFields on PairHourData {
+// Pool snapshot fields for chart data
+export const POOL_SNAPSHOT_FIELDS = gql`
+  fragment PoolSnapshotFields on LiquidityPoolAggregatorSnapshot {
     id
-    hourStartUnix
-    pair {
-      id
-    }
+    chainId
+    name
+    pool
+    token0_id
+    token1_id
+    token0_address
+    token1_address
+    isStable
+    isCL
     reserve0
     reserve1
-    totalSupply
-    reserveUSD
-    hourlyVolumeToken0
-    hourlyVolumeToken1
-    hourlyVolumeUSD
-    hourlyTxns
+    totalLPTokenSupply
+    totalLiquidityUSD
+    totalVolume0
+    totalVolume1
+    totalVolumeUSD
+    totalFeesGenerated0
+    totalFeesGenerated1
+    totalFeesGeneratedUSD
+    numberOfSwaps
+    token0Price
+    token1Price
+    timestamp
   }
 `;
+
+// User stats per pool for position tracking
+export const USER_STATS_FIELDS = gql`
+  fragment UserStatsFields on UserStatsPerPool {
+    id
+    userAddress
+    poolAddress
+    chainId
+    currentLiquidityUSD
+    lpBalance
+    totalLiquidityAddedUSD
+    totalLiquidityAddedToken0
+    totalLiquidityAddedToken1
+    totalLiquidityRemovedUSD
+    totalLiquidityRemovedToken0
+    totalLiquidityRemovedToken1
+    totalFeesContributedUSD
+    totalFeesContributed0
+    totalFeesContributed1
+    numberOfSwaps
+    totalSwapVolumeUSD
+    firstActivityTimestamp
+    lastActivityTimestamp
+  }
+`;
+
+// Token price snapshot fields
+export const TOKEN_PRICE_SNAPSHOT_FIELDS = gql`
+  fragment TokenPriceSnapshotFields on TokenPriceSnapshot {
+    id
+    address
+    pricePerUSDNew
+    chainId
+    isWhitelisted
+    lastUpdatedTimestamp
+  }
+`;
+
+// Legacy aliases for backwards compatibility during migration
+export const PAIR_FIELDS = POOL_FIELDS;
+export const PAIR_DAY_DATA_FIELDS = POOL_SNAPSHOT_FIELDS;
+export const PAIR_HOUR_DATA_FIELDS = POOL_SNAPSHOT_FIELDS;

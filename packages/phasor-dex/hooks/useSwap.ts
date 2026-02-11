@@ -175,7 +175,10 @@ export function useSwap(
     setError(null);
 
     const txDeadline = getDeadline(deadline);
-    const path = [inputToken.address, outputToken.address];
+
+    // Velodrome uses Route[] struct instead of address[] path
+    // Route: { from: address, to: address, stable: bool, factory: address }
+    // Default to volatile (stable: false) pools for most pairs
 
     try {
       const isInputNative = inputToken.address === NATIVE_TOKEN.address;
@@ -183,28 +186,46 @@ export function useSwap(
 
       if (isInputNative) {
         // Swap ETH for tokens
+        const routes = [{
+          from: CONTRACTS.WMON,
+          to: outputToken.address,
+          stable: false,
+          factory: CONTRACTS.POOL_FACTORY,
+        }];
         writeSwap({
           address: CONTRACTS.ROUTER,
           abi: ROUTER_ABI,
           functionName: "swapExactETHForTokens",
-          args: [quote.minimumReceived, [CONTRACTS.WMON, outputToken.address], account, txDeadline],
+          args: [quote.minimumReceived, routes, account, txDeadline],
           value: quote.amountIn,
         });
       } else if (isOutputNative) {
         // Swap tokens for ETH
+        const routes = [{
+          from: inputToken.address,
+          to: CONTRACTS.WMON,
+          stable: false,
+          factory: CONTRACTS.POOL_FACTORY,
+        }];
         writeSwap({
           address: CONTRACTS.ROUTER,
           abi: ROUTER_ABI,
           functionName: "swapExactTokensForETH",
-          args: [quote.amountIn, quote.minimumReceived, [inputToken.address, CONTRACTS.WMON], account, txDeadline],
+          args: [quote.amountIn, quote.minimumReceived, routes, account, txDeadline],
         });
       } else {
         // Swap tokens for tokens
+        const routes = [{
+          from: inputToken.address,
+          to: outputToken.address,
+          stable: false,
+          factory: CONTRACTS.POOL_FACTORY,
+        }];
         writeSwap({
           address: CONTRACTS.ROUTER,
           abi: ROUTER_ABI,
           functionName: "swapExactTokensForTokens",
-          args: [quote.amountIn, quote.minimumReceived, path, account, txDeadline],
+          args: [quote.amountIn, quote.minimumReceived, routes, account, txDeadline],
         });
       }
 

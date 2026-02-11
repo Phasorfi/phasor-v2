@@ -6,22 +6,22 @@ import { DEFAULT_TOKENS } from "@/config/chains";
 import { useMemo } from "react";
 
 export function usePools() {
-  // Get the total number of pairs from the factory
-  const { data: pairsLength, isLoading: isPairsLengthLoading } = useReadContract({
+  // Get the total number of pools from the factory (Velodrome uses allPoolsLength)
+  const { data: poolsLength, isLoading: isPoolsLengthLoading } = useReadContract({
     address: CONTRACTS.FACTORY,
     abi: FACTORY_ABI,
-    functionName: "allPairsLength",
+    functionName: "allPoolsLength",
   });
 
-  const totalPairs = Number(pairsLength ?? 0);
+  const totalPairs = Number(poolsLength ?? 0);
 
-  // Get all pair addresses
+  // Get all pool addresses (Velodrome uses allPools)
   const pairAddressContracts = useMemo(() => {
     if (totalPairs === 0) return [];
     return Array.from({ length: totalPairs }, (_, i) => ({
       address: CONTRACTS.FACTORY,
       abi: FACTORY_ABI,
-      functionName: "allPairs" as const,
+      functionName: "allPools" as const,
       args: [BigInt(i)],
     }));
   }, [totalPairs]);
@@ -92,7 +92,8 @@ export function usePools() {
       const baseIndex = i * itemsPerPair;
       const token0Address = pairData[baseIndex]?.result as Address | undefined;
       const token1Address = pairData[baseIndex + 1]?.result as Address | undefined;
-      const reserves = pairData[baseIndex + 2]?.result as [bigint, bigint, number] | undefined;
+      // Velodrome uses uint256 for all reserves fields (including timestamp)
+      const reserves = pairData[baseIndex + 2]?.result as readonly [bigint, bigint, bigint] | undefined;
       const totalSupply = pairData[baseIndex + 3]?.result as bigint | undefined;
 
       if (!token0Address || !token1Address || !reserves || !totalSupply) continue;
@@ -136,7 +137,7 @@ export function usePools() {
 
   return {
     pools,
-    isLoading: isPairsLengthLoading || isPairAddressesLoading || isPairDataLoading,
+    isLoading: isPoolsLengthLoading || isPairAddressesLoading || isPairDataLoading,
     totalPairs,
     refetch: refetchPairData,
   };

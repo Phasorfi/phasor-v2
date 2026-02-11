@@ -1,9 +1,10 @@
 "use client";
 
 import { useQuery } from "@apollo/client/react";
-import { useMemo, useState } from "react";
-import { useAccount } from "wagmi";
-import { GET_USER_TRANSACTIONS } from "@/lib/graphql/queries";
+import { useMemo } from "react";
+import { useAccount, useChainId } from "wagmi";
+import { GET_USER_TRANSACTIONS, GET_POOLS_BY_ADDRESSES } from "@/lib/graphql/queries";
+import { apolloClient } from "@/lib/apollo-client";
 import { PortfolioTransaction, Token } from "@/types";
 import { Address } from "viem";
 
@@ -15,163 +16,153 @@ export interface UseUserTransactionsResult {
   hasMore: boolean;
 }
 
-interface TransactionToken {
+interface UserPoolStats {
   id: string;
-  symbol: string;
-  decimals: string;
-}
-
-interface TransactionPair {
-  token0: TransactionToken;
-  token1: TransactionToken;
-}
-
-interface MintData {
-  id: string;
-  timestamp: string;
-  pair: TransactionPair;
-  amount0: string;
-  amount1: string;
-  amountUSD: string;
-  transaction: {
-    id: string;
-  };
-}
-
-interface BurnData {
-  id: string;
-  timestamp: string;
-  pair: TransactionPair;
-  amount0: string;
-  amount1: string;
-  amountUSD: string;
-  transaction: {
-    id: string;
-  };
-}
-
-interface SwapData {
-  id: string;
-  timestamp: string;
-  pair: TransactionPair;
-  amount0In: string;
-  amount1In: string;
-  amount0Out: string;
-  amount1Out: string;
-  amountUSD: string;
-  transaction: {
-    id: string;
-  };
+  poolAddress: string;
+  chainId: number;
+  numberOfSwaps: string;
+  totalSwapVolumeUSD: string;
+  totalLiquidityAddedUSD: string;
+  totalLiquidityRemovedUSD: string;
+  firstActivityTimestamp: string;
+  lastActivityTimestamp: string;
 }
 
 interface UserTransactionsData {
-  mints?: MintData[];
-  burns?: BurnData[];
-  swaps?: SwapData[];
+  UserStatsPerPool?: UserPoolStats[];
 }
 
-const TRANSACTIONS_PER_PAGE = 50;
+interface PoolData {
+  poolAddress: string;
+  name: string;
+  token0_address: string;
+  token1_address: string;
+}
 
 export function useUserTransactions(): UseUserTransactionsResult {
   const { address: userAddress } = useAccount();
-  const [currentPage, setCurrentPage] = useState(1);
+  const chainId = useChainId();
 
   const { data, loading, error } = useQuery<UserTransactionsData>(GET_USER_TRANSACTIONS, {
+    client: apolloClient,
     variables: {
       user: userAddress?.toLowerCase() || "",
-      first: TRANSACTIONS_PER_PAGE * currentPage,
+      chainId,
     },
     skip: !userAddress,
-    // Remove pollInterval to prevent too many requests
   });
 
-  const transactions = useMemo(() => {
-    if (!data) {
-      return [];
+  // Collect pool addresses to get token info
+  const poolAddresses = useMemo(() => {
+    if (!data?.UserStatsPerPool) return [];
+    return data.UserStatsPerPool.map(s => s.poolAddress.toLowerCase());
+  }, [data]);
+
+  const { data: poolsData } = useQuery(GET_POOLS_BY_ADDRESSES, {
+    client: apolloClient,
+    variables: {
+      poolAddresses,
+      chainId,
+    },
+    skip: poolAddresses.length === 0,
+  });
+
+  // Build pool lookup map
+  const poolMap = useMemo(() => {
+    const map = new Map<string, PoolData>();
+    if (poolsData?.LiquidityPoolAggregator) {
+      poolsData.LiquidityPoolAggregator.forEach((pool: PoolData) => {
+        map.set(pool.poolAddress.toLowerCase(), pool);
+      });
     }
+    return map;
+  }, [poolsData]);
+
+  const transactions = useMemo(() => {
+    if (!data?.UserStatsPerPool) return [];
 
     const allTransactions: PortfolioTransaction[] = [];
 
-    // Process mints (add liquidity)
-    (data.mints || []).forEach((mint: any) => {
+    data.UserStatsPerPool.forEach((stats) => {
+      const pool = poolMap.get(stats.poolAddress.toLowerCase());
+      const poolName = pool?.name || "";
+      const nameTokens = poolName.replace(/^[vs]AMM-/, "").split("/");
+
       const token0: Token = {
-        address: mint.pair.token0.id as Address,
-        symbol: mint.pair.token0.symbol,
-        name: mint.pair.token0.symbol,
-        decimals: mint.pair.token0.decimals,
+        address: (pool?.token0_address || stats.poolAddress) as Address,
+        symbol: nameTokens[0] || "TKN0",
+        name: nameTokens[0] || "Token 0",
+        decimals: 18,
       };
 
       const token1: Token = {
-        address: mint.pair.token1.id as Address,
-        symbol: mint.pair.token1.symbol,
-        name: mint.pair.token1.symbol,
-        decimals: mint.pair.token1.decimals,
+        address: (pool?.token1_address || stats.poolAddress) as Address,
+        symbol: nameTokens[1] || "TKN1",
+        name: nameTokens[1] || "Token 1",
+        decimals: 18,
       };
 
-      allTransactions.push({
-        id: mint.id,
-        type: "mint",
-        timestamp: parseInt(mint.timestamp),
-        token0,
-        token1,
-        amount0: parseFloat(mint.amount0 || "0").toString(),
-        amount1: parseFloat(mint.amount1 || "0").toString(),
-        amountUSD: parseFloat(mint.amountUSD || "0"),
-        hash: mint.transaction.id,
-      });
+      const lastTs = stats.lastActivityTimestamp
+        ? Math.floor(new Date(stats.lastActivityTimestamp).getTime() / 1000)
+        : 0;
+
+      // Create a swap summary entry if the user has swapped in this pool
+      if (parseInt(stats.numberOfSwaps || "0") > 0) {
+        allTransactions.push({
+          id: `${stats.id}-swap`,
+          type: "swap",
+          timestamp: lastTs,
+          token0,
+          token1,
+          amount0: `${stats.numberOfSwaps} swaps`,
+          amount1: "",
+          amountUSD: parseFloat(stats.totalSwapVolumeUSD || "0"),
+          hash: stats.poolAddress,
+        });
+      }
+
+      // Create a mint summary entry if the user has added liquidity
+      const addedUSD = parseFloat(stats.totalLiquidityAddedUSD || "0");
+      if (addedUSD > 0) {
+        allTransactions.push({
+          id: `${stats.id}-mint`,
+          type: "mint",
+          timestamp: lastTs,
+          token0,
+          token1,
+          amount0: "",
+          amount1: "",
+          amountUSD: addedUSD,
+          hash: stats.poolAddress,
+        });
+      }
+
+      // Create a burn summary entry if the user has removed liquidity
+      const removedUSD = parseFloat(stats.totalLiquidityRemovedUSD || "0");
+      if (removedUSD > 0) {
+        allTransactions.push({
+          id: `${stats.id}-burn`,
+          type: "burn",
+          timestamp: lastTs,
+          token0,
+          token1,
+          amount0: "",
+          amount1: "",
+          amountUSD: removedUSD,
+          hash: stats.poolAddress,
+        });
+      }
     });
 
-    // Process burns (remove liquidity)
-    (data.burns || []).forEach((burn: any) => {
-      const token0: Token = {
-        address: burn.pair.token0.id as Address,
-        symbol: burn.pair.token0.symbol,
-        name: burn.pair.token0.symbol,
-        decimals: burn.pair.token0.decimals,
-      };
-
-      const token1: Token = {
-        address: burn.pair.token1.id as Address,
-        symbol: burn.pair.token1.symbol,
-        name: burn.pair.token1.symbol,
-        decimals: burn.pair.token1.decimals,
-      };
-
-      allTransactions.push({
-        id: burn.id,
-        type: "burn",
-        timestamp: parseInt(burn.timestamp),
-        token0,
-        token1,
-        amount0: parseFloat(burn.amount0 || "0").toString(),
-        amount1: parseFloat(burn.amount1 || "0").toString(),
-        amountUSD: parseFloat(burn.amountUSD || "0"),
-        hash: burn.transaction.id,
-      });
-    });
-
-    // Sort all transactions by timestamp (newest first)
+    // Sort by timestamp (newest first)
     return allTransactions.sort((a, b) => b.timestamp - a.timestamp);
-  }, [data]);
-
-  const hasMore = useMemo(() => {
-    if (!data) return false;
-    const totalFetched = transactions.length;
-    const expectedMax = TRANSACTIONS_PER_PAGE * currentPage;
-    return totalFetched >= expectedMax;
-  }, [data, transactions.length, currentPage]);
-
-  const loadMore = () => {
-    if (!loading && hasMore) {
-      setCurrentPage(prev => prev + 1);
-    }
-  };
+  }, [data, poolMap]);
 
   return {
     transactions,
     isLoading: loading,
     error: error || null,
-    loadMore,
-    hasMore,
+    loadMore: () => {},
+    hasMore: false,
   };
 }

@@ -1,11 +1,11 @@
 import { useMemo } from "react";
 import { Address } from "viem";
-import { useReadContracts } from "wagmi";
+import { useReadContracts, useChainId } from "wagmi";
 import { useQuery } from "@apollo/client/react";
 import { Pool, Token } from "@/types";
 import { PAIR_ABI } from "@/config";
 import { DEFAULT_TOKENS } from "@/config/chains";
-import { GET_POOL } from "@/lib/graphql/queries";
+import { GET_POOL_BY_ADDRESS } from "@/lib/graphql/queries";
 import { apolloClient } from "@/lib/apollo-client";
 
 interface UsePoolDetailResult {
@@ -14,23 +14,25 @@ interface UsePoolDetailResult {
   error: Error | null;
 }
 
-interface SubgraphToken {
-  id: string;
-  symbol: string;
-  name: string;
-  decimals: string;
-}
-
-interface SubgraphPairData {
-  pair: {
+interface SubgraphPoolData {
+  LiquidityPoolAggregator: Array<{
     id: string;
-    token0: SubgraphToken;
-    token1: SubgraphToken;
+    poolAddress: string;
+    name: string;
+    token0_address: string;
+    token1_address: string;
+    isStable: boolean;
     reserve0: string;
     reserve1: string;
-    reserveUSD: string;
-    volumeUSD: string;
-  } | null;
+    totalLPTokenSupply: string;
+    totalLiquidityUSD: string;
+    totalVolumeUSD: string;
+    numberOfSwaps: string;
+    token0Price: string;
+    token1Price: string;
+    baseFee: string;
+    currentFee: string;
+  }> | null;
 }
 
 /**
@@ -39,6 +41,7 @@ interface SubgraphPairData {
  */
 export function usePoolDetail(poolAddress: string): UsePoolDetailResult {
   const address = poolAddress as Address;
+  const chainId = useChainId();
 
   // Fetch core pool data from contracts
   const { data: contractData, isLoading: isContractLoading } = useReadContracts({
@@ -66,24 +69,15 @@ export function usePoolDetail(poolAddress: string): UsePoolDetailResult {
     ],
   });
 
-  // Fetch enrichment data from subgraph
-  const { data: subgraphData, loading: isSubgraphLoading, error: subgraphError } = useQuery<SubgraphPairData>(GET_POOL, {
+  // Fetch enrichment data from subgraph using address + chainId lookup
+  const { data: subgraphData, loading: isSubgraphLoading, error: subgraphError } = useQuery<SubgraphPoolData>(GET_POOL_BY_ADDRESS, {
     client: apolloClient,
-    variables: { id: poolAddress.toLowerCase() },
+    variables: {
+      poolAddress: poolAddress.toLowerCase(),
+      chainId,
+    },
     skip: !poolAddress,
   });
-
-  // Debug logging
-  if (typeof window !== 'undefined') {
-    console.log('[usePoolDetail] State:', {
-      poolAddress,
-      isContractLoading,
-      isSubgraphLoading,
-      contractData: contractData?.map(r => ({ status: r.status, result: r.status === 'success' ? 'success' : r.error })),
-      subgraphData,
-      subgraphError: subgraphError?.message,
-    });
-  }
 
   // Combine contract and subgraph data
   const pool = useMemo((): Pool | null => {
@@ -102,11 +96,16 @@ export function usePoolDetail(poolAddress: string): UsePoolDetailResult {
 
     const token0Address = token0Result.result as Address;
     const token1Address = token1Result.result as Address;
-    const reserves = reservesResult.result as [bigint, bigint, number];
+    // Velodrome uses uint256 for all reserves fields (including timestamp)
+    const reserves = reservesResult.result as readonly [bigint, bigint, bigint];
     const totalSupply = totalSupplyResult.result as bigint;
 
     // Find token metadata from DEFAULT_TOKENS or subgraph
-    const subgraphPair = subgraphData?.pair;
+    const subgraphPool = subgraphData?.LiquidityPoolAggregator?.[0] ?? null;
+
+    // Parse pool name for token symbols (format: "vAMM-TOKEN0/TOKEN1" or "sAMM-TOKEN0/TOKEN1")
+    const poolName = subgraphPool?.name || "";
+    const nameTokens = poolName.replace(/^[vs]AMM-/, "").split("/");
 
     // Prefer token list over subgraph for metadata
     const token0FromList = DEFAULT_TOKENS.find(t => t.address.toLowerCase() === token0Address.toLowerCase());
@@ -114,37 +113,27 @@ export function usePoolDetail(poolAddress: string): UsePoolDetailResult {
 
     const token0: Token = {
       address: token0Address,
-      symbol: token0FromList?.symbol ||
-              (subgraphPair?.token0.symbol !== "UNI-V2" ? subgraphPair?.token0.symbol : undefined) ||
-              `Token${token0Address.slice(0, 6)}`,
-      name: token0FromList?.name ||
-            (subgraphPair?.token0.name !== "Uniswap V2" ? subgraphPair?.token0.name : undefined) ||
-            "Unknown Token",
-      decimals: token0FromList?.decimals ||
-                (subgraphPair?.token0.decimals ? parseInt(subgraphPair.token0.decimals) : 18),
+      symbol: token0FromList?.symbol || nameTokens[0] || `Token${token0Address.slice(0, 6)}`,
+      name: token0FromList?.name || nameTokens[0] || "Unknown Token",
+      decimals: token0FromList?.decimals || 18,
       logoURI: token0FromList?.logoURI,
     };
 
     const token1: Token = {
       address: token1Address,
-      symbol: token1FromList?.symbol ||
-              (subgraphPair?.token1.symbol !== "UNI-V2" ? subgraphPair?.token1.symbol : undefined) ||
-              `Token${token1Address.slice(0, 6)}`,
-      name: token1FromList?.name ||
-            (subgraphPair?.token1.name !== "Uniswap V2" ? subgraphPair?.token1.name : undefined) ||
-            "Unknown Token",
-      decimals: token1FromList?.decimals ||
-                (subgraphPair?.token1.decimals ? parseInt(subgraphPair.token1.decimals) : 18),
+      symbol: token1FromList?.symbol || nameTokens[1] || `Token${token1Address.slice(0, 6)}`,
+      name: token1FromList?.name || nameTokens[1] || "Unknown Token",
+      decimals: token1FromList?.decimals || 18,
       logoURI: token1FromList?.logoURI,
     };
 
     // Calculate enrichment data from subgraph if available
-    const tvlUSD = subgraphPair?.reserveUSD ? parseFloat(subgraphPair.reserveUSD) : undefined;
-    const volumeUSD = subgraphPair?.volumeUSD ? parseFloat(subgraphPair.volumeUSD) : undefined;
+    const tvlUSD = subgraphPool?.totalLiquidityUSD ? parseFloat(subgraphPool.totalLiquidityUSD) : undefined;
+    const volumeUSD = subgraphPool?.totalVolumeUSD ? parseFloat(subgraphPool.totalVolumeUSD) : undefined;
 
-    // Calculate APR from 24h volume
+    // Calculate APR from 24h volume estimate
     const dailyVolume = volumeUSD ? volumeUSD / 365 : undefined;
-    const poolFee = 0.003; // 0.3%
+    const poolFee = subgraphPool?.currentFee ? parseInt(subgraphPool.currentFee) / 10000 : 0.003;
     const apr = tvlUSD && dailyVolume && tvlUSD > 0
       ? ((dailyVolume * poolFee * 365) / tvlUSD) * 100
       : undefined;
@@ -156,10 +145,11 @@ export function usePoolDetail(poolAddress: string): UsePoolDetailResult {
       reserve0: reserves[0],
       reserve1: reserves[1],
       totalSupply,
-      fee: 30, // 0.3% in basis points
+      fee: subgraphPool?.currentFee ? parseInt(subgraphPool.currentFee) : 30,
       tvlUSD,
       volume24hUSD: dailyVolume,
       apr,
+      isStable: subgraphPool?.isStable,
     };
   }, [contractData, subgraphData, poolAddress]);
 
