@@ -10,7 +10,7 @@ When you swap:
 1. You send Token A to the pool
 2. The pool calculates the exchange rate using the **constant product formula**
 3. You receive Token B from the pool
-4. A 0.3% fee is deducted and distributed to liquidity providers
+4. A trading fee is deducted — **0.30%** for volatile pools or **0.05%** for stable pools
 
 ## Making a Swap
 
@@ -39,7 +39,7 @@ Before confirming, review the swap details:
 | **Rate** | Exchange rate between the two tokens |
 | **Price Impact** | How much your trade affects the pool price |
 | **Minimum Received** | Guaranteed minimum after slippage |
-| **Fee** | Trading fee (0.3% of input amount) |
+| **Fee** | Trading fee (0.30% volatile / 0.05% stable) |
 
 ### Step 4: Approve & Swap
 
@@ -99,10 +99,14 @@ Slippage is the difference between expected and actual execution price. It occur
 
 ### Trading Fees
 
-Every swap incurs a **0.3% fee** on the input amount:
-- **0.3%** goes entirely to liquidity providers
+Swap fees depend on the pool type:
 
-This fee incentivizes users to provide liquidity and ensures deep, stable pools.
+| Pool Type | Fee | Best For |
+|-----------|-----|----------|
+| Volatile | 0.30% | Most token pairs (WMON/USDC, PHASOR/WMON) |
+| Stable | 0.05% | Pegged assets (USDC/USDT, DAI/USDC) |
+
+Trading fees are distributed to **vePHASOR holders** who voted for that pool's gauge. This is part of the [ve(3,3) model](tokenomics.md) — voters direct emissions and earn fees in return.
 
 ## Swap Routes
 
@@ -114,7 +118,7 @@ Route: SOL → WMON → USDC
 ```
 
 The router finds the optimal path to give you the best rate, considering:
-- Available pools
+- Available pools (both volatile and stable)
 - Liquidity depth
 - Total fees across hops
 

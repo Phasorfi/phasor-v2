@@ -8,12 +8,13 @@ Provide liquidity to earn trading fees. This guide covers how to add and remove 
 
 1. Navigate to **Pools** and click **Add Liquidity** (or select a pool and click **Add**)
 2. Select the two tokens for your pair
-3. Enter the amount for one token — the other calculates automatically to maintain the pool ratio
-4. Review the details:
+3. Choose pool type: **Volatile** (standard, 0.30% fee) or **Stable** (for pegged assets, 0.05% fee)
+4. Enter the amount for one token — the other calculates automatically to maintain the pool ratio
+5. Review the details:
    - **Pool Share** — Your percentage of the pool after deposit
    - **Rates** — Current exchange rate
-5. Click **Approve** for each token (first time only)
-6. Click **Supply** and confirm in your wallet
+6. Click **Approve** for each token (first time only)
+7. Click **Supply** and confirm in your wallet
 
 ### What You Receive
 
@@ -63,10 +64,10 @@ When token prices change relative to when you deposited, you may experience **im
 
 ### Mitigation
 
-- **Trading fees** can offset impermanent loss over time
-- **Staking rewards** provide additional compensation
-- **Stablecoin pairs** (USDC/USDT) have minimal IL
-- Consider IL as the "cost" of earning fees
+- **Stable pools** for pegged assets (USDC/USDT) have near-zero impermanent loss by design
+- **Staking rewards** with the [time multiplier](staking.md) provide significant additional compensation
+- **Trading volume** generates fees that offset IL over time
+- Consider IL as the "cost" of earning rewards
 
 ### Example
 
@@ -81,11 +82,11 @@ But you also earned trading fees, which may exceed this loss.
 
 ## Best Practices
 
-1. **Start with stable pairs** — Lower IL risk while learning
+1. **Start with stable pools** — Lower IL risk and fees while learning
 2. **Consider correlation** — Pairs that move together have less IL
-3. **Monitor your positions** — Track performance in Portfolio
-4. **Factor in rewards** — Staking can significantly boost returns
-5. **Long-term perspective** — Fees accumulate over time
+3. **Stake your LP tokens** — After adding liquidity, [stake in the pool's gauge](staking.md) to earn PHASOR rewards with a growing time multiplier (up to 3x at 90 days)
+4. **Monitor your positions** — Track performance in Portfolio
+5. **Long-term perspective** — The time multiplier and fee accumulation reward patience
 
 ---
 
