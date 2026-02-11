@@ -19,10 +19,12 @@
 ## Project Overview
 
 Phasor DEX is a decentralized exchange built on Monad testnet, featuring:
-- Uniswap V2-style AMM with liquidity pools
+- **Velodrome V2 AMM** with stable and volatile liquidity pools
+- **ve(3,3) tokenomics** with voting escrow and gauge voting
 - Portfolio tracking with historical charts
 - Real-time swap interface
 - Liquidity provision (add/remove)
+- **VelodromeLauncher** for token sales with automatic LP creation and gauge staking
 - Graph Protocol subgraph for historical data indexing
 
 ## Architecture
@@ -33,13 +35,17 @@ Phasor DEX is a decentralized exchange built on Monad testnet, featuring:
 - **State Management**: React hooks + wagmi for Web3
 - **Data Fetching**: Apollo Client for GraphQL (subgraph queries)
 
-### Smart Contracts (`packages/core`)
-- **Factory**: `UniswapV2Factory` - Creates new trading pairs
-- **Router**: `UniswapV2Router02` - Handles swaps and liquidity
-- **Pairs**: `UniswapV2Pair` - Individual AMM pools
+### Smart Contracts (`packages/velodrome-fork`)
+- **PoolFactory**: Creates new trading pools (stable or volatile)
+- **Pool**: Individual AMM pools (supports stable and volatile pricing curves)
+- **Router**: Handles swaps and liquidity operations
+- **VotingEscrow**: ve(3,3) lock mechanism for PHASOR tokens
+- **Voter**: Gauge voting and emissions distribution
+- **Gauge**: Liquidity mining rewards
+- **VelodromeLauncher**: Token sale launchpad with automatic LP + Gauge creation
 - **Deployment**: Cannon for deterministic deployments
 
-### Subgraph (`packages/v2-subgraph`)
+### Subgraph (`packages/velodrome-subgraph`)
 - **Platform**: The Graph Protocol
 - **Network**: Local Graph Node for development, Monad testnet for production
 - **Entities**: Pairs, Tokens, Swaps, Mints, Burns, hourly/daily aggregations
@@ -48,97 +54,47 @@ Phasor DEX is a decentralized exchange built on Monad testnet, featuring:
 
 ### 1. Subgraph Configuration
 
-**Important**: There is only ONE subgraph deployed: `phasor-v2`
-
-The codebase previously referenced a separate `v2-tokens` subgraph, but this does **not exist**. All data (pairs, tokens, swaps, price history) is in the main `phasor-v2` subgraph.
+**Important**: The subgraph uses Velodrome-style event signatures with `bool stable` parameter.
 
 **Apollo Client Setup** (`packages/phasor-dex/lib/apollo-client.ts`):
 ```typescript
-// ✅ CORRECT - Use apolloClient for ALL queries
+// Use apolloClient for ALL queries
 const apolloClient = new ApolloClient({
-  link: httpLink, // Points to phasor-v2 subgraph
+  link: httpLink, // Points to velodrome subgraph
   // ...
 });
-
-// ❌ DEPRECATED - tokensApolloClient should NOT be used
-// All price data exists in the main phasor-v2 subgraph
 ```
 
-**All GraphQL queries must use `apolloClient`**, not `tokensApolloClient`:
-- `usePortfolioHistory` - Uses main subgraph for `tokenDayDatas`
-- `useTokenPrices` - Uses main subgraph for current prices
-- `usePoolChartData` - Uses main subgraph for `pairHourDatas` and `pairDayDatas`
-- `usePoolDetail` - Uses main subgraph for pair data
-- `PoolDetailTransactions` - Uses main subgraph for swaps/mints/burns
+**GraphQL Queries** (`packages/phasor-dex/lib/graphql/queries.ts`):
+- Uses `pairs` / `pair` entity names (compatible with Velodrome schema)
+- Added `isStable` field to PAIR_FIELDS fragment
+- `GET_PROTOCOL_DATA` uses `factory` entity (not `uniswapFactory`)
 
-### 2. Portfolio Page Implementation
+### 2. VelodromeLauncher Contract
 
-**Location**: `packages/phasor-dex/app/portfolio/page.tsx`
+**Location**: `packages/velodrome-fork/contracts/launchpad/VelodromeLauncher.sol`
 
-**Key Features**:
-- Overview tab: Portfolio value chart and stats
-- Tokens tab: Token holdings with prices and allocations
-- Activity tab: Transaction history (mints/burns)
+**Features**:
+- Fixed-rate token sales with soft/hard caps
+- Ve-gating: requires ownership of veNFT to participate
+- Automatic liquidity creation via Velodrome Router
+- Automatic gauge creation and LP staking
+- LP receipt tokens sent to locker for vesting
 
-**Important Fixes Applied**:
+**Key Functions**:
+```solidity
+createSale(token, baseToken, tokenAmount, price, softCap, hardCap, startTime, endTime)
+contribute(saleId, amount)  // ve-gated
+finalizeAndLaunch(saleId, liquidityPercent)  // Creates LP, gauge, stakes LP
+claim(saleId)  // Users claim tokens after finalization
+refund(saleId)  // If cancelled or soft cap not reached
+```
 
-1. **Portfolio History Hook** (`hooks/usePortfolioHistory.ts`):
-   - Fixed to fetch data even when user has LP positions but no current token balances
-   - Uses `apolloClient` (not `tokensApolloClient`)
-   - Lowercase address normalization for consistent lookups
-   - Query is not skipped if user has positions: `shouldFetch = userAddress && (allTokenAddresses.length > 0 || positions.length > 0)`
+### 3. Pool Types
 
-2. **Token Prices Hook** (`hooks/useTokenPrices.ts`):
-   - Changed from `tokensApolloClient` to `apolloClient`
-   - Queries `tokenDayDatas` from main subgraph
-
-3. **Address Case Sensitivity**:
-   - All addresses must be lowercased before GraphQL queries and map lookups
-   - Subgraph stores addresses in lowercase
-   - Frontend must normalize addresses consistently
-
-### 3. Pool Detail Pages
-
-**Location**: `packages/phasor-dex/app/pools/[address]/page.tsx`
-
-**Components**:
-1. **PoolDetailHeader** - Token pair info, price, volume
-2. **PoolDetailStats** - TVL, 24h volume, fees, APR
-3. **PoolDetailChart** - Liquidity & volume chart (hourly/daily)
-4. **PoolDetailTransactions** - Recent swaps, mints, burns
-
-**Critical Fixes**:
-
-1. **Chart Data** (`hooks/usePoolChartData.ts`):
-   - Uses `apolloClient` for both hourly and daily data
-   - Queries `pairHourDatas` for 1D period
-   - Queries `pairDayDatas` for 1W/1M/ALL periods
-   - Both exist at root level in subgraph (not nested under Pair)
-
-2. **Transaction History** (`components/pool/PoolDetailTransactions.tsx`):
-   - **Apollo Cache Fix**: Must include `id` fields for all entities (Pair, Token0, Token1)
-   - Apollo Client requires `id` as keyField (defined in `apollo-client.ts`)
-   - Query structure:
-     ```graphql
-     pair {
-       id  # ← Required!
-       token0 {
-         id      # ← Required!
-         symbol
-       }
-       token1 {
-         id      # ← Required!
-         symbol
-       }
-     }
-     ```
-
-3. **Chart Styling**:
-   - Height: `h-[350px] md:h-[400px]` (better than `h-64`)
-   - Margins: `{ top: 10, right: 30, left: 10, bottom: 0 }`
-   - Y-axis width: `60px` for consistent label space
-   - Bar radius: `[4, 4, 0, 0]` for rounded top corners
-   - Grid: `vertical={false}` for cleaner appearance
+Velodrome supports two pool types:
+- **Volatile pools** (`stable = false`): Standard x*y=k curve
+- **Stable pools** (`stable = true`): Optimized for like-kind assets (stablecoins)
 
 ### 4. Local Development Setup
 
@@ -152,59 +108,40 @@ anvil --host 0.0.0.0 --chain-id 10143 --timestamp <past_timestamp> --balance 100
 - Private key: `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`
 
 **Subgraph URLs**:
-- Local: `http://localhost:8000/subgraphs/name/phasor-v2`
+- Local: `http://localhost:8000/subgraphs/name/velodrome-subgraph`
 - GraphQL endpoint for queries
 
 **Environment Variables** (`.env.local`):
 ```bash
-NEXT_PUBLIC_SUBGRAPH_URL=http://127.0.0.1:8000/subgraphs/name/phasor-v2
+NEXT_PUBLIC_SUBGRAPH_URL=http://127.0.0.1:8000/subgraphs/name/velodrome-subgraph
 NEXT_PUBLIC_CHAIN_ID=10143
 NEXT_PUBLIC_DEFAULT_RPC_URL=http://127.0.0.1:8545
 ```
 
 ### 5. Subgraph Network Configurations
 
-The subgraph has separate configurations for different environments:
-
-**Configuration Structure** (`packages/v2-subgraph/config/`):
+**Configuration Structure** (`packages/velodrome-subgraph/config/`):
 ```
 config/
-├── local/           # For local Anvil development (updated by deploy script)
-│   ├── config.json  # Factory address, startBlock
-│   ├── chain.ts     # Token addresses, pair addresses
-│   └── .subgraph-env
-├── monad-testnet/   # For Monad testnet (static, real addresses)
-│   ├── config.json
-│   ├── chain.ts
-│   └── .subgraph-env
-└── monad/           # For Monad mainnet (future)
+├── local/           # For local Anvil development
+│   └── config.json  # Factory address, startBlock, network
+└── monad-testnet/   # For Monad testnet
+    └── config.json
 ```
-
-**Important**: The `local` config files are overwritten by `deploy-local-full.sh`. Never commit local addresses to `monad-testnet` config.
-
-**Why both have `network: monad-testnet`**: The graph-node's ethereum setting uses `monad-testnet` as the network name. The subgraph manifest must match this. The difference is only in the contract addresses.
 
 ### 6. Common Issues and Solutions
 
 **Issue**: Graph-node shows "chain is defective" error
-- **Cause**: Anvil was restarted and got a new genesis hash, but graph-node database has old chain state
-- **Fix**: The deploy script now automatically wipes `data/postgres` and `data/ipfs` before starting graph-node
-
-**Issue**: Portfolio charts not showing data
-- **Cause**: Using wrong Apollo client or no LP positions detected
-- **Fix**: Ensure `apolloClient` is used and query is not skipped when positions exist
+- **Cause**: Anvil was restarted and got a new genesis hash
+- **Fix**: Wipe `data/postgres` and `data/ipfs` before starting graph-node
 
 **Issue**: "Missing field 'id' while extracting keyFields"
 - **Cause**: GraphQL queries missing `id` field for entities
-- **Fix**: Include `id` field for all entities (Pair, Token, etc.) that have keyFields defined in Apollo cache
-
-**Issue**: Pool charts showing "No historical data available"
-- **Cause**: Query filters or wrong subgraph endpoint
-- **Fix**: Verify query uses correct field names (`pairAddress` not `pair`) and `apolloClient`
+- **Fix**: Include `id` field for all entities (Pair, Token, etc.)
 
 **Issue**: Addresses not matching in lookups
-- **Cause**: Inconsistent address casing (checksummed vs lowercase)
-- **Fix**: Normalize all addresses to lowercase before queries and Map lookups
+- **Cause**: Inconsistent address casing
+- **Fix**: Normalize all addresses to lowercase before queries
 
 ### 7. Data Flow Architecture
 
@@ -225,7 +162,7 @@ UI Components Display Results
 ```
 
 **Entity Relationships**:
-- `Pair` → has `token0` and `token1` (many-to-one)
+- `Pair` → has `token0`, `token1`, and `isStable` (many-to-one)
 - `Swap/Mint/Burn` → references `pair` (many-to-one)
 - `PairDayData/PairHourData` → aggregates by time period
 - `TokenDayData` → tracks token prices over time
@@ -239,27 +176,33 @@ When making changes, verify:
 - [ ] Pool transactions list displays swaps/mints/burns
 - [ ] No Apollo cache errors in console
 - [ ] All addresses are lowercase in GraphQL queries
-- [ ] Queries use `apolloClient` (not `tokensApolloClient`)
-
-### 9. Future Enhancements (See dex-plan.md)
-
-The `dex-plan.md` file contains a comprehensive 2-week sprint plan for:
-- PHASOR token (ERC20 with permit)
-- MasterChef farming (SushiSwap V2 fork)
-- Merkle airdrop
-- Launchpad (Fair launch, LBP, Tiered sales)
-- xPHASOR staking
-
-Refer to that document for implementation details when building these features.
 
 ---
+
+## Package Structure
+
+```
+packages/
+├── velodrome-fork/          # Velodrome V2 smart contracts
+│   ├── contracts/
+│   │   ├── Pool.sol         # AMM pool implementation
+│   │   ├── Router.sol       # Swap and liquidity router
+│   │   ├── VotingEscrow.sol # ve(3,3) lock mechanism
+│   │   ├── Voter.sol        # Gauge voting
+│   │   ├── Gauge.sol        # Liquidity mining
+│   │   ├── Phasor.sol       # PHASOR token
+│   │   ├── launchpad/       # VelodromeLauncher
+│   │   └── test/            # Mock tokens (USDC, USDT, WBTC, etc.)
+├── velodrome-subgraph/      # The Graph subgraph
+└── phasor-dex/              # Next.js frontend
+```
 
 ## Development Workflow
 
 1. **Start local blockchain**: `anvil --host 0.0.0.0 --chain-id 10143`
 2. **Deploy contracts**: `./deploy-local-full.sh`
-3. **Start Graph Node**: Docker compose in `packages/v2-subgraph`
-4. **Deploy subgraph**: Scripts in `packages/v2-subgraph/scripts`
+3. **Start Graph Node**: Docker compose in `packages/velodrome-subgraph`
+4. **Deploy subgraph**: Scripts in `packages/velodrome-subgraph`
 5. **Start frontend**: `cd packages/phasor-dex && npm run dev`
 6. **Connect wallet**: Use test account with MetaMask
 
@@ -282,9 +225,5 @@ When facing build errors, configuration issues, or tooling problems:
 2. **Research first** - Use web search to find the proper solution. Most tools have documented ways to handle edge cases
 3. **Ask for references** - If you need documentation links or aren't sure where to look, ask the user
 4. **Understand the root cause** - Before implementing any fix, understand WHY the issue is happening
-
-**Example**: Foundry compilation errors with multiple Solidity versions
-- ❌ Wrong: Using `skip` or `ignore` to exclude problematic files
-- ✅ Right: Using `compilation_restrictions` to force correct compiler version per path (documented in Foundry's official docs)
 
 The goal is to fix issues properly, not to make errors disappear temporarily.

@@ -144,28 +144,11 @@ compile_contracts() {
 }
 
 # ============================================================================
-# Step 2: Calculate and Update INIT_CODE_HASH
-# ============================================================================
-
-calculate_and_update_hash() {
-    log_step "Step 2: Calculating INIT_CODE_HASH..."
-
-    # Use the TypeScript script to calculate and update the hash
-    npx tsx script/calculateInitHash.ts
-
-    # Recompile with updated hash
-    log_info "Recompiling with updated hash..."
-    ~/.foundry/bin/forge build
-
-    log_success "INIT_CODE_HASH updated and contracts recompiled"
-}
-
-# ============================================================================
-# Step 3: Deploy Contracts with Cannon
+# Step 2: Deploy Contracts with Cannon
 # ============================================================================
 
 deploy_contracts() {
-    log_step "Step 3: Deploying contracts with Cannon..."
+    log_step "Step 2: Deploying contracts with Cannon..."
 
     # Deploy using Cannon and capture output
     local deploy_output=$(npx @usecannon/cli build $CANNONFILE \
@@ -184,8 +167,12 @@ deploy_contracts() {
     ADDRESSES["WBTC"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.WBTC\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
     ADDRESSES["WETH"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.WETH\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
     ADDRESSES["WMON"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.WMON\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
-    ADDRESSES["Factory"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.UniswapV2Factory\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
-    ADDRESSES["Router"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.UniswapV2Router\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
+
+    # Velodrome Pool System (replaces UniswapV2)
+    ADDRESSES["PoolImplementation"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.PoolImplementation\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
+    ADDRESSES["PoolFactory"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.PoolFactory\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
+    ADDRESSES["Router"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.Router\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
+    ADDRESSES["FactoryRegistry"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.FactoryRegistry\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
 
     # Velodrome Fork Ecosystem addresses
     ADDRESSES["Phasor"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.Phasor\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
@@ -194,39 +181,32 @@ deploy_contracts() {
     ADDRESSES["RewardsDistributor"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.RewardsDistributor\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
     ADDRESSES["Minter"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.Minter\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
 
-    # MISO Launchpad addresses
-    ADDRESSES["MISOAccessControls"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.MISOAccessControls\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
-    ADDRESSES["MISOMarket"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.MISOMarket\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
-    ADDRESSES["MISOLauncher"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.MISOLauncher\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
-    ADDRESSES["BatchAuction"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.BatchAuction\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
-    ADDRESSES["Crowdsale"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.Crowdsale\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
-    ADDRESSES["DutchAuction"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.DutchAuction\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
-    ADDRESSES["HyperbolicAuction"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.HyperbolicAuction\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
-    ADDRESSES["PostAuctionLauncher"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.PostAuctionLauncher\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
+    # VelodromeLauncher (replaces MISO)
+    ADDRESSES["VelodromeLauncher"]=$(echo "$deploy_output" | grep -A 2 "\[deploy.VelodromeLauncher\]" | grep "Contract Address:" | sed 's/.*Contract Address: //' | tr -d ' ')
 
     # Get the current block number (factory was just deployed)
     FACTORY_DEPLOY_BLOCK=$(cast block latest --rpc-url $RPC_URL 2>/dev/null | grep -oP 'number\s+\K\d+')
 
     log_success "Contracts deployed successfully"
-    log_info "Factory: ${ADDRESSES[Factory]}"
+    log_info "PoolFactory: ${ADDRESSES[PoolFactory]}"
     log_info "Router: ${ADDRESSES[Router]}"
+    log_info "FactoryRegistry: ${ADDRESSES[FactoryRegistry]}"
     log_info "WMON: ${ADDRESSES[WMON]}"
     log_info "Phasor: ${ADDRESSES[Phasor]}"
     log_info "VotingEscrow: ${ADDRESSES[VotingEscrow]}"
     log_info "Voter: ${ADDRESSES[Voter]}"
     log_info "RewardsDistributor: ${ADDRESSES[RewardsDistributor]}"
     log_info "Minter: ${ADDRESSES[Minter]}"
-    log_info "MISOMarket: ${ADDRESSES[MISOMarket]}"
-    log_info "MISOLauncher: ${ADDRESSES[MISOLauncher]}"
+    log_info "VelodromeLauncher: ${ADDRESSES[VelodromeLauncher]}"
     log_info "Deployment block: $FACTORY_DEPLOY_BLOCK"
 }
 
 # ============================================================================
-# Step 4: Create Liquidity Pools
+# Step 3: Create Liquidity Pools
 # ============================================================================
 
 create_liquidity_pools() {
-    log_step "Step 4: Creating liquidity pools..."
+    log_step "Step 3: Creating liquidity pools..."
 
     local router="${ADDRESSES[Router]}"
     # Use blockchain time for deadline, not real time
@@ -272,16 +252,8 @@ create_liquidity_pools() {
                 }
         fi
 
-        if [ "$token1_name" = "WETH" ]; then
-            log_info "  Depositing ${amount1} ETH to WETH..."
-            ~/.foundry/bin/cast send $token1 "deposit()" \
-                --private-key $DEPLOYER_KEY \
-                --rpc-url $RPC_URL \
-                --value ${amount1_wei} || {
-                    log_error "Failed to deposit ${amount1} ETH to WETH"
-                    return 1
-                }
-        fi
+        # Note: MockWETH has pre-minted tokens, no need to deposit
+        # (Unlike WMON which uses WETH9-style deposit)
 
         # Approve tokens
         log_info "  Approving $token0_name..."
@@ -300,12 +272,14 @@ create_liquidity_pools() {
                 return 1
             }
 
-        # Add liquidity
-        log_info "  Adding liquidity to router..."
+        # Add liquidity (Velodrome Router: includes stable param)
+        # Using stable=false for volatile pools (xy=k curve)
+        log_info "  Adding liquidity to router (volatile pool)..."
         ~/.foundry/bin/cast send $router \
-            "addLiquidity(address,address,uint256,uint256,uint256,uint256,address,uint256)" \
+            "addLiquidity(address,address,bool,uint256,uint256,uint256,uint256,address,uint256)" \
             $token0 \
             $token1 \
+            false \
             $amount0_wei \
             $amount1_wei \
             0 \
@@ -324,35 +298,36 @@ create_liquidity_pools() {
     log_success "All liquidity pools created"
 
     # Capture stable pair addresses for subgraph configuration (convert to lowercase for AssemblyScript compatibility)
-    log_info "Capturing stable pair addresses for subgraph..."
-    PAIR_WMON_USDC=$(cast call ${ADDRESSES[Factory]} "getPair(address,address)(address)" ${ADDRESSES[WMON]} ${ADDRESSES[USDC]} --rpc-url $RPC_URL | tr '[:upper:]' '[:lower:]')
-    PAIR_WMON_USDT=$(cast call ${ADDRESSES[Factory]} "getPair(address,address)(address)" ${ADDRESSES[WMON]} ${ADDRESSES[USDT]} --rpc-url $RPC_URL | tr '[:upper:]' '[:lower:]')
-    log_info "  WMON-USDC pair: $PAIR_WMON_USDC"
-    log_info "  WMON-USDT pair: $PAIR_WMON_USDT"
+    # Velodrome PoolFactory uses getPool(tokenA, tokenB, stable) instead of getPair(tokenA, tokenB)
+    log_info "Capturing pool addresses for subgraph..."
+    PAIR_WMON_USDC=$(cast call ${ADDRESSES[PoolFactory]} "getPool(address,address,bool)(address)" ${ADDRESSES[WMON]} ${ADDRESSES[USDC]} false --rpc-url $RPC_URL | tr '[:upper:]' '[:lower:]')
+    PAIR_WMON_USDT=$(cast call ${ADDRESSES[PoolFactory]} "getPool(address,address,bool)(address)" ${ADDRESSES[WMON]} ${ADDRESSES[USDT]} false --rpc-url $RPC_URL | tr '[:upper:]' '[:lower:]')
+    log_info "  WMON-USDC pool: $PAIR_WMON_USDC"
+    log_info "  WMON-USDT pool: $PAIR_WMON_USDT"
 }
 
 # ============================================================================
-# Step 4.5: Setup Staking System (VotingEscrow + StakingRewards)
+# Step 3.5: Setup Staking System (VotingEscrow + StakingRewards)
 # ============================================================================
 
 setup_staking_system() {
-    log_step "Step 4.5: Setting up Velodrome Gauge & vePHASOR..."
+    log_step "Step 3.5: Setting up Velodrome Gauge & vePHASOR..."
 
     local voter="${ADDRESSES[Voter]}"
     local ve="${ADDRESSES[VotingEscrow]}"
     local phasor="${ADDRESSES[Phasor]}"
-    local factory="${ADDRESSES[Factory]}"
+    local pool_factory="${ADDRESSES[PoolFactory]}"
 
-    # Get WMON-USDC LP pair address
-    local wmon_usdc_lp=$(cast call $factory "getPair(address,address)(address)" ${ADDRESSES[WMON]} ${ADDRESSES[USDC]} --rpc-url $RPC_URL)
+    # Get WMON-USDC LP pool address (Velodrome uses getPool with stable param)
+    local wmon_usdc_lp=$(cast call $pool_factory "getPool(address,address,bool)(address)" ${ADDRESSES[WMON]} ${ADDRESSES[USDC]} false --rpc-url $RPC_URL)
     ADDRESSES["LP_WMON-USDC"]=$wmon_usdc_lp
-    log_info "WMON-USDC LP pair: $wmon_usdc_lp"
+    log_info "WMON-USDC LP pool: $wmon_usdc_lp"
 
-    # Create Gauge for WMON-USDC pair via Voter
-    log_info "  Creating Gauge for WMON-USDC pair via Voter..."
+    # Create Gauge for WMON-USDC pool via Voter
+    log_info "  Creating Gauge for WMON-USDC pool via Voter..."
     local gauge_tx=$(~/.foundry/bin/cast send $voter \
         "createGauge(address,address)" \
-        $factory \
+        $pool_factory \
         $wmon_usdc_lp \
         --private-key $DEPLOYER_KEY \
         --rpc-url $RPC_URL \
@@ -427,157 +402,162 @@ setup_staking_system() {
 }
 
 # ============================================================================
-# Step 4.6: Setup Test Fair Launches
+# Step 3.6: Setup Test Fair Launches (VelodromeLauncher)
 # ============================================================================
 
 setup_test_launches() {
-    log_step "Step 4.6: Setting up MISO test auctions..."
+    log_step "Step 3.6: Setting up VelodromeLauncher test sales..."
 
-    local miso_market="${ADDRESSES[MISOMarket]}"
+    local launcher="${ADDRESSES[VelodromeLauncher]}"
     local phasor="${ADDRESSES[Phasor]}"
+    local usdc="${ADDRESSES[USDC]}"
 
-    # Use PHASOR token for test auctions (18 decimals, required by Crowdsale)
+    # Use PHASOR token for test sales
     local test_token=$phasor
-    log_info "  Using PHASOR token for test auctions: $test_token"
-
-    # ETH sentinel address used by MISO for ETH payments
-    local ETH_ADDRESS="0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
+    log_info "  Using PHASOR token for test sales: $test_token"
+    log_info "  VelodromeLauncher: $launcher"
 
     local current_time=$(cast block latest --json --rpc-url $RPC_URL | jq -r '.timestamp' | xargs printf "%d\n")
 
     # =========================================================================
-    # Auction 1: Active Crowdsale
-    # Template order: BatchAuction=1, Crowdsale=2, DutchAuction=3, Hyperbolic=4
+    # Sale 1: Active Fixed-Rate Sale
     # =========================================================================
-    log_info "  Creating Auction 1: Active Crowdsale..."
+    log_info "  Creating Sale 1: Active Fixed-Rate Sale..."
 
     local sale1_tokens=$(to_wei 100000 18)  # 100k PHASOR for sale
-    local start1=$((current_time + 120))
-    local end1=$((current_time + 86400))
-    local rate1=1000  # 1000 tokens per ETH
-    local goal1=$(to_wei 10 18)  # 10 ETH goal
+    local start1=$((current_time + 120))     # Starts in 2 minutes
+    local end1=$((current_time + 86400))     # Ends in 1 day
+    local price1=$(to_wei 1 6)               # 1 USDC per token (6 decimals for USDC)
+    local softcap1=$(to_wei 10000 6)         # 10k USDC soft cap
+    local hardcap1=$(to_wei 100000 6)        # 100k USDC hard cap
 
-    # Approve tokens to MISOMarket
+    # Approve tokens to VelodromeLauncher
     ~/.foundry/bin/cast send $test_token \
         "approve(address,uint256)" \
-        $miso_market \
+        $launcher \
         $sale1_tokens \
         --private-key $DEPLOYER_KEY \
         --rpc-url $RPC_URL > /dev/null 2>&1
 
-    # Crowdsale init data: funder, token, paymentCurrency, totalTokens, startTime, endTime, rate, goal, admin, pointList, wallet
-    local crowdsale_data=$(cast abi-encode "f(address,address,address,uint256,uint256,uint256,uint256,uint256,address,address,address)" \
-        $DEPLOYER_ADDR \
+    # Create sale: createSale(token, baseToken, tokenAmount, price, softCap, hardCap, startTime, endTime)
+    local sale1_tx=$(~/.foundry/bin/cast send $launcher \
+        "createSale(address,address,uint256,uint256,uint256,uint256,uint256,uint256)" \
         $test_token \
-        $ETH_ADDRESS \
+        $usdc \
         $sale1_tokens \
+        $price1 \
+        $softcap1 \
+        $hardcap1 \
         $start1 \
         $end1 \
-        $rate1 \
-        $goal1 \
-        $DEPLOYER_ADDR \
-        "0x0000000000000000000000000000000000000000" \
-        $DEPLOYER_ADDR)
-
-    # templateId 2 = Crowdsale
-    local auction1_tx=$(~/.foundry/bin/cast send $miso_market \
-        "createMarket(uint256,address,uint256,address,bytes)" \
-        2 \
-        $test_token \
-        $sale1_tokens \
-        "0x0000000000000000000000000000000000000000" \
-        $crowdsale_data \
         --private-key $DEPLOYER_KEY \
         --rpc-url $RPC_URL \
         --json 2>/dev/null)
 
-    # Get auction address from MISOMarket.getMarkets()
-    local markets_after=$(cast call $miso_market "getMarkets()(address[])" --rpc-url $RPC_URL 2>/dev/null)
-    local auction1_addr=$(echo "$markets_after" | tr -d '[]' | tr ',' '\n' | tail -1 | tr -d ' ')
-
-    if [ -n "$auction1_addr" ] && [ "$auction1_addr" != "" ]; then
-        ADDRESSES["Auction1"]=$auction1_addr
-        log_success "    Auction 1 created: $auction1_addr (Crowdsale)"
+    local sale_count=$(cast call $launcher "saleCount()(uint256)" --rpc-url $RPC_URL 2>/dev/null)
+    if [ "$sale_count" != "0" ]; then
+        log_success "    Sale 1 created (saleId: 0)"
 
         # Advance time to make it active
-        log_info "    Advancing time to activate auction..."
+        log_info "    Advancing time to activate sale..."
         ~/.foundry/bin/cast rpc evm_increaseTime 150 --rpc-url $RPC_URL > /dev/null 2>&1
         ~/.foundry/bin/cast rpc evm_mine --rpc-url $RPC_URL > /dev/null 2>&1
 
-        # Have traders commit ETH
-        log_info "    Adding test commitments..."
-        ~/.foundry/bin/cast send $auction1_addr \
-            "commitEth(address,bool)" \
-            ${TRADER_ADDRS[0]} \
-            true \
-            --value 5ether \
-            --private-key ${TRADER_KEYS[0]} \
-            --rpc-url $RPC_URL > /dev/null 2>&1 && log_success "      Trader 1 committed 5 ETH"
+        # Transfer USDC to traders and have them contribute
+        log_info "    Adding test contributions..."
 
-        ~/.foundry/bin/cast send $auction1_addr \
-            "commitEth(address,bool)" \
+        # Transfer USDC to trader 1
+        ~/.foundry/bin/cast send $usdc \
+            "transfer(address,uint256)" \
+            ${TRADER_ADDRS[0]} \
+            $(to_wei 5000 6) \
+            --private-key $DEPLOYER_KEY \
+            --rpc-url $RPC_URL > /dev/null 2>&1
+
+        # Trader 1 approves and contributes
+        ~/.foundry/bin/cast send $usdc \
+            "approve(address,uint256)" \
+            $launcher \
+            $(to_wei 5000 6) \
+            --private-key ${TRADER_KEYS[0]} \
+            --rpc-url $RPC_URL > /dev/null 2>&1
+
+        ~/.foundry/bin/cast send $launcher \
+            "contribute(uint256,uint256)" \
+            0 \
+            $(to_wei 5000 6) \
+            --private-key ${TRADER_KEYS[0]} \
+            --rpc-url $RPC_URL > /dev/null 2>&1 && log_success "      Trader 1 contributed 5000 USDC"
+
+        # Transfer USDC to trader 2
+        ~/.foundry/bin/cast send $usdc \
+            "transfer(address,uint256)" \
             ${TRADER_ADDRS[1]} \
-            true \
-            --value 3ether \
+            $(to_wei 3000 6) \
+            --private-key $DEPLOYER_KEY \
+            --rpc-url $RPC_URL > /dev/null 2>&1
+
+        # Trader 2 approves and contributes
+        ~/.foundry/bin/cast send $usdc \
+            "approve(address,uint256)" \
+            $launcher \
+            $(to_wei 3000 6) \
             --private-key ${TRADER_KEYS[1]} \
-            --rpc-url $RPC_URL > /dev/null 2>&1 && log_success "      Trader 2 committed 3 ETH"
+            --rpc-url $RPC_URL > /dev/null 2>&1
+
+        ~/.foundry/bin/cast send $launcher \
+            "contribute(uint256,uint256)" \
+            0 \
+            $(to_wei 3000 6) \
+            --private-key ${TRADER_KEYS[1]} \
+            --rpc-url $RPC_URL > /dev/null 2>&1 && log_success "      Trader 2 contributed 3000 USDC"
     else
-        log_error "    Failed to create Auction 1"
+        log_error "    Failed to create Sale 1"
     fi
 
     # =========================================================================
-    # Auction 2: Upcoming Crowdsale (not started yet)
+    # Sale 2: Upcoming Sale (not started yet)
     # =========================================================================
-    log_info "  Creating Auction 2: Upcoming Crowdsale..."
+    log_info "  Creating Sale 2: Upcoming Fixed-Rate Sale..."
 
     local current_time2=$(cast block latest --json --rpc-url $RPC_URL | jq -r '.timestamp' | xargs printf "%d\n")
 
-    local sale2_tokens=$(to_wei 50000 18)  # 50k PHASOR
-    local start2=$((current_time2 + 3600))
-    local end2=$((current_time2 + 172800))
-    local rate2=500  # 500 tokens per ETH
-    local goal2=$(to_wei 5 18)  # 5 ETH goal
+    local sale2_tokens=$(to_wei 50000 18)    # 50k PHASOR
+    local start2=$((current_time2 + 3600))    # Starts in 1 hour
+    local end2=$((current_time2 + 172800))    # Ends in 2 days
+    local price2=$(to_wei 2 6)                # 2 USDC per token
+    local softcap2=$(to_wei 5000 6)           # 5k USDC soft cap
+    local hardcap2=$(to_wei 100000 6)         # 100k USDC hard cap
 
     ~/.foundry/bin/cast send $test_token \
         "approve(address,uint256)" \
-        $miso_market \
+        $launcher \
         $sale2_tokens \
         --private-key $DEPLOYER_KEY \
         --rpc-url $RPC_URL > /dev/null 2>&1
 
-    local crowdsale2_data=$(cast abi-encode "f(address,address,address,uint256,uint256,uint256,uint256,uint256,address,address,address)" \
-        $DEPLOYER_ADDR \
+    ~/.foundry/bin/cast send $launcher \
+        "createSale(address,address,uint256,uint256,uint256,uint256,uint256,uint256)" \
         $test_token \
-        $ETH_ADDRESS \
+        $usdc \
         $sale2_tokens \
+        $price2 \
+        $softcap2 \
+        $hardcap2 \
         $start2 \
         $end2 \
-        $rate2 \
-        $goal2 \
-        $DEPLOYER_ADDR \
-        "0x0000000000000000000000000000000000000000" \
-        $DEPLOYER_ADDR)
-
-    # templateId 2 = Crowdsale
-    ~/.foundry/bin/cast send $miso_market \
-        "createMarket(uint256,address,uint256,address,bytes)" \
-        2 \
-        $test_token \
-        $sale2_tokens \
-        "0x0000000000000000000000000000000000000000" \
-        $crowdsale2_data \
         --private-key $DEPLOYER_KEY \
         --rpc-url $RPC_URL > /dev/null 2>&1
 
-    local auction_count=$(cast call $miso_market "numberOfAuctions()(uint256)" --rpc-url $RPC_URL)
-    log_success "  Test auctions setup complete: $auction_count auctions created"
+    local final_sale_count=$(cast call $launcher "saleCount()(uint256)" --rpc-url $RPC_URL)
+    log_success "  Test sales setup complete: $final_sale_count sales created"
 }
 
 # ============================================================================
-# Step 9: Generate Historical Trading Data
+# Step 8: Generate Historical Trading Data
 # ============================================================================
 
-# Execute a swap on the router
+# Execute a swap on the router (Velodrome uses Route[] struct instead of address[] path)
 execute_swap_on_router() {
     local token_in=$1
     local token_out=$2
@@ -604,11 +584,15 @@ execute_swap_on_router() {
     # Execute swap with deadline far in the future (use a very large number to avoid expiration)
     # Since we're manipulating blockchain time, we can't rely on system time
     local deadline=9999999999  # Year 2286 - far enough in the future
+
+    # Velodrome Router uses Route[] struct instead of address[] path
+    # Route struct: { from: address, to: address, stable: bool, factory: address }
+    # For volatile pools, stable=false
     ~/.foundry/bin/cast send ${ADDRESSES[Router]} \
-        "swapExactTokensForTokens(uint256,uint256,address[],address,uint256)" \
+        "swapExactTokensForTokens(uint256,uint256,(address,address,bool,address)[],address,uint256)" \
         $amount_in \
         $amount_out_min \
-        "[${ADDRESSES[$token_in]},${ADDRESSES[$token_out]}]" \
+        "[(${ADDRESSES[$token_in]},${ADDRESSES[$token_out]},false,${ADDRESSES[PoolFactory]})]" \
         $trader_addr \
         $deadline \
         --private-key $trader_key \
@@ -671,7 +655,7 @@ generate_historical_data() {
         return 0
     fi
 
-    log_step "Step 9: Generating historical trading data..."
+    log_step "Step 8: Generating historical trading data..."
 
     # Configuration
     local DAYS_OF_HISTORY=30
@@ -689,12 +673,12 @@ generate_historical_data() {
         local trader_addr=${TRADER_ADDRS[$i]}
         local trader_key=${TRADER_KEYS[$i]}
 
-        log_info "    Trader $((i+1)): Wrapping ETH to WMON and WETH..."
+        log_info "    Trader $((i+1)): Wrapping ETH to WMON..."
         ~/.foundry/bin/cast send ${ADDRESSES[WMON]} "deposit()" --value 200ether --private-key $trader_key --rpc-url $RPC_URL > /dev/null 2>&1
 
-        ~/.foundry/bin/cast send ${ADDRESSES[WETH]} "deposit()" --value 20ether --private-key $trader_key --rpc-url $RPC_URL > /dev/null 2>&1
-
         log_info "    Trader $((i+1)): Transferring tokens..."
+        ~/.foundry/bin/cast send ${ADDRESSES[WETH]} "transfer(address,uint256)" $trader_addr $(to_wei 20 18) --private-key $DEPLOYER_KEY --rpc-url $RPC_URL > /dev/null 2>&1
+
         ~/.foundry/bin/cast send ${ADDRESSES[USDC]} "transfer(address,uint256)" $trader_addr $(to_wei 200000 6) --private-key $DEPLOYER_KEY --rpc-url $RPC_URL > /dev/null 2>&1
 
         ~/.foundry/bin/cast send ${ADDRESSES[USDT]} "transfer(address,uint256)" $trader_addr $(to_wei 200000 6) --private-key $DEPLOYER_KEY --rpc-url $RPC_URL > /dev/null 2>&1
@@ -772,11 +756,11 @@ generate_historical_data() {
 }
 
 # ============================================================================
-# Step 5: Update Frontend Configuration
+# Step 4: Update Frontend Configuration
 # ============================================================================
 
 update_frontend_env() {
-    log_step "Step 5: Updating frontend .env.local..."
+    log_step "Step 4: Updating frontend .env.local..."
 
     local env_file="packages/phasor-dex/.env.local"
 
@@ -786,8 +770,10 @@ update_frontend_env() {
 NEXT_PUBLIC_CHAIN_ID=$CHAIN_ID
 NEXT_PUBLIC_DEFAULT_RPC_URL=$RPC_URL
 
-# Core Contract Addresses
-NEXT_PUBLIC_DEFAULT_FACTORY_ADDRESS=${ADDRESSES[Factory]}
+# Core Contract Addresses (Velodrome Pool System)
+NEXT_PUBLIC_POOL_FACTORY_ADDRESS=${ADDRESSES[PoolFactory]}
+NEXT_PUBLIC_DEFAULT_FACTORY_ADDRESS=${ADDRESSES[PoolFactory]}
+NEXT_PUBLIC_FACTORY_REGISTRY_ADDRESS=${ADDRESSES[FactoryRegistry]}
 NEXT_PUBLIC_DEFAULT_ROUTER_ADDRESS=${ADDRESSES[Router]}
 NEXT_PUBLIC_DEFAULT_WMON_ADDRESS=${ADDRESSES[WMON]}
 
@@ -799,14 +785,12 @@ NEXT_PUBLIC_GAUGE_ADDRESS=${ADDRESSES[Gauge]}
 NEXT_PUBLIC_REWARDS_DISTRIBUTOR_ADDRESS=${ADDRESSES[RewardsDistributor]}
 NEXT_PUBLIC_MINTER_ADDRESS=${ADDRESSES[Minter]}
 
-# MISO Launchpad (SushiSwap Fork)
-NEXT_PUBLIC_MISO_ACCESS_CONTROLS_ADDRESS=${ADDRESSES[MISOAccessControls]}
-NEXT_PUBLIC_MISO_MARKET_ADDRESS=${ADDRESSES[MISOMarket]}
-NEXT_PUBLIC_MISO_LAUNCHER_ADDRESS=${ADDRESSES[MISOLauncher]}
+# VelodromeLauncher (Launchpad)
+NEXT_PUBLIC_VELODROME_LAUNCHER_ADDRESS=${ADDRESSES[VelodromeLauncher]}
 
-# Subgraph URLs
-NEXT_PUBLIC_SUBGRAPH_URL=http://127.0.0.1:8000/subgraphs/name/phasor-v2
-NEXT_PUBLIC_TOKENS_SUBGRAPH_URL=http://127.0.0.1:8000/subgraphs/name/phasor-v2-tokens
+# Envio Indexer URL (Hasura GraphQL endpoint)
+NEXT_PUBLIC_ENVIO_URL=http://localhost:8080/v1/graphql
+NEXT_PUBLIC_ENVIO_ADMIN_SECRET=testing
 EOF
 
     # Clear Next.js build cache to ensure new env vars are picked up
@@ -816,11 +800,11 @@ EOF
 }
 
 # ============================================================================
-# Step 6: Update Token List
+# Step 5: Update Token List
 # ============================================================================
 
 update_token_list() {
-    log_step "Step 6: Updating tokenlist.json..."
+    log_step "Step 5: Updating tokenlist.json..."
 
     local tokenlist_file="packages/phasor-dex/public/tokenlist.json"
 
@@ -916,162 +900,110 @@ fs.writeFileSync('$tokenlist_file', JSON.stringify(tokenList, null, 2));
 }
 
 # ============================================================================
-# Step 7: Update Subgraph Configuration
+# Step 6: Update Envio Indexer Configuration
 # ============================================================================
 
 update_subgraph_config() {
-    log_step "Step 7: Updating subgraph configurations..."
+    log_step "Step 6: Updating Envio indexer configuration..."
 
-    # Update local chain config for local deployment (preserves monad-testnet config)
-    local chain_config="packages/v2-subgraph/config/local/chain.ts"
-    cat > $chain_config << EOF
-import { Address, BigDecimal, BigInt } from '@graphprotocol/graph-ts/index'
-
-// Monad Testnet - Factory address
-export const FACTORY_ADDRESS = '${ADDRESSES[Factory],,}'
-
-// WMON (Wrapped MON) - Reference token for pricing
-export const REFERENCE_TOKEN = '${ADDRESSES[WMON],,}'
-
-// Stable token pairs for USD pricing (WMON-USDC, WMON-USDT)
-// These pairs are used to calculate Bundle.ethPrice for USD pricing
-export const STABLE_TOKEN_PAIRS: string[] = [
-  '${PAIR_WMON_USDC}', // WMON-USDC
-  '${PAIR_WMON_USDT}', // WMON-USDT
-]
-
-// Token whitelist - from tokenlist.json
-// Tokens that should contribute to tracked volume and liquidity
-export const WHITELIST: string[] = [
-  '${ADDRESSES[WMON],,}', // WMON - Wrapped Monad
-  '${ADDRESSES[USDC],,}', // USDC
-  '${ADDRESSES[USDT],,}', // USDT
-  '${ADDRESSES[WBTC],,}', // WBTC
-  '${ADDRESSES[WETH],,}', // WETH
-  '${ADDRESSES[SOL],,}', // SOL
-  '${ADDRESSES[FOLKS],,}', // FOLKS
-]
-
-// Stablecoins for USD pricing
-export const STABLECOINS = [
-  '${ADDRESSES[USDC],,}', // USDC
-  '${ADDRESSES[USDT],,}', // USDT
-]
-
-// minimum liquidity required to count towards tracked volume for pairs with small # of Lps
-export const MINIMUM_USD_THRESHOLD_NEW_PAIRS = BigDecimal.fromString('10000')
-
-// minimum liquidity for price to get tracked
-export const MINIMUM_LIQUIDITY_THRESHOLD_ETH = BigDecimal.fromString('100000')
-
-export class TokenDefinition {
-  address: Address
-  symbol: string
-  name: string
-  decimals: BigInt
-}
-
-export const STATIC_TOKEN_DEFINITIONS: TokenDefinition[] = [
-  {
-    address: Address.fromString('${ADDRESSES[WMON],,}'),
-    symbol: 'WMON',
-    name: 'Wrapped Monad',
-    decimals: BigInt.fromI32(18),
-  },
-]
-
-export const SKIP_TOTAL_SUPPLY: string[] = []
-EOF
-
-    log_success "Subgraph chain config updated (local)"
-}
-
-# ============================================================================
-# Step 8: Deploy Subgraphs (Background)
-# ============================================================================
-
-deploy_subgraph_background() {
-    log_step "Step 8: Deploying subgraphs..."
-
-    cd packages/v2-subgraph
+    cd packages/envio-indexer
 
     # Use the factory deployment block captured during contract deployment
     local factory_block=$FACTORY_DEPLOY_BLOCK
-
     if [ -z "$factory_block" ]; then
-        log_error "Factory deployment block not set"
-        factory_block="1"
-        log_info "Using default startBlock: $factory_block"
-    else
-        log_info "Using factory deployment block: $factory_block"
+        factory_block="0"
     fi
 
-    # Update local config.json which is used by mustache to generate the YAML manifests
-    # Note: network is still "monad-testnet" to match graph-node's ethereum setting
-    log_info "Updating local config.json with factory address and startBlock..."
-    cat > config/local/config.json << EOF
-{
-  "network": "monad-testnet",
-  "factory": "${ADDRESSES[Factory]}",
-  "startblock": "$factory_block"
-}
-EOF
+    # Update the Monad network section in the existing Velodrome config.yaml
+    # The Velodrome indexer has all the handlers, we just need to configure addresses
+    log_info "Updating Monad network in config.yaml..."
 
-    # WIPE graph-node database to handle genesis hash changes when Anvil restarts
-    # This prevents "chain is defective" errors when the genesis hash changes
-    log_info "Wiping graph-node database for fresh sync..."
-    docker-compose down > /dev/null 2>&1 || true
-    # Use Docker to remove data directories (they're owned by Docker users)
-    docker run --rm -v "$(pwd)/data:/data" alpine sh -c "rm -rf /data/postgres /data/ipfs && mkdir -p /data/postgres /data/ipfs" > /dev/null 2>&1 || {
-        # Fallback: try direct removal (may need sudo on some systems)
-        rm -rf data/postgres data/ipfs 2>/dev/null || true
-        mkdir -p data/postgres data/ipfs
-    }
+    # Use Python to update the Monad network section
+    # Pass bash variables as command-line arguments to avoid heredoc issues
 
-    # Start all graph-node services fresh
-    log_info "Starting graph-node with local Anvil RPC..."
-    MONAD_RPC_URL= docker-compose up -d > /dev/null 2>&1
+    local pool_factory_addr="${ADDRESSES[PoolFactory]}"
+    local voter_addr="${ADDRESSES[Voter]}"
 
-    # Wait for graph-node to be ready
-    log_info "Waiting for graph-node to be ready..."
-    for i in {1..30}; do
-        if curl -s http://127.0.0.1:8020 > /dev/null 2>&1; then
-            break
-        fi
-        sleep 1
-    done
+    log_info "Monad network found, updating..."
 
-    if ! curl -s http://127.0.0.1:8020 > /dev/null 2>&1; then
-        log_error "Graph node failed to start"
-        cd ../..
-        return
-    fi
+    python3 - "$factory_block" "$pool_factory_addr" "$voter_addr" << 'PYTHON_EOF'
+import re
+import sys
 
-    log_success "Graph-node ready"
+factory_block = sys.argv[1]
+pool_factory_addr = sys.argv[2]
+voter_addr = sys.argv[3]
 
-    # Deploy V2 subgraph
-    log_info "Building and deploying V2 subgraph..."
-    yarn build --network local --subgraph-type v2 > /dev/null 2>&1
-    yarn graph create --node http://127.0.0.1:8020/ phasor-v2 > /dev/null 2>&1 || true
-    yarn graph deploy --node http://127.0.0.1:8020/ --ipfs http://127.0.0.1:5001 phasor-v2 v2-subgraph.yaml --version-label v$(date +%s) > /dev/null 2>&1
-    log_success "V2 subgraph deployed"
+with open('config.yaml', 'r') as f:
+    content = f.read()
 
-    # Deploy V2-Tokens subgraph
-    log_info "Building and deploying V2-Tokens subgraph..."
-    yarn build --network local --subgraph-type v2-tokens > /dev/null 2>&1
-    yarn graph create --node http://127.0.0.1:8020/ phasor-v2-tokens > /dev/null 2>&1 || true
-    yarn graph deploy --node http://127.0.0.1:8020/ --ipfs http://127.0.0.1:5001 phasor-v2-tokens v2-tokens-subgraph.yaml --version-label v$(date +%s) > /dev/null 2>&1
-    log_success "V2-Tokens subgraph deployed"
+# Pattern to match the Monad network section (id: 10143)
+# This matches from "- id: 10143" to the next network or end of file
+pattern = r'(  - id: 10143.*?)(?=\n  - id:|\Z)'
+
+replacement = f'''  - id: 10143 # Monad Testnet / Phasor Local
+    rpc:
+      - url: http://127.0.0.1:8545
+        for: sync
+    start_block: {factory_block}
+    contracts:
+      - name: PoolFactory
+        address:
+          - "{pool_factory_addr}"
+      - name: Pool
+        address:
+      - name: Voter
+        address:
+          - "{voter_addr}"
+      - name: Gauge
+        address:
+      - name: FeesVotingReward
+        address:
+      - name: BribesVotingReward
+        address:'''
+
+# Replace the Monad section
+new_content = re.sub(pattern, replacement, content, flags=re.DOTALL)
+
+with open('config.yaml', 'w') as f:
+    f.write(new_content)
+
+print('Config updated successfully')
+PYTHON_EOF
+
+    # Write .env file with deployed contract addresses for the indexer
+    log_info "Writing .env file with contract addresses..."
+    cat > .env << ENVEOF
+ENVIO_MONAD_RPC_URL=http://127.0.0.1:8545
+ENVIO_MONAD_WMON_ADDRESS=$(echo "${ADDRESSES[WMON]}" | tr '[:upper:]' '[:lower:]')
+ENVIO_MONAD_USDC_ADDRESS=$(echo "${ADDRESSES[USDC]}" | tr '[:upper:]' '[:lower:]')
+ENVIO_MONAD_PHASOR_ADDRESS=$(echo "${ADDRESSES[Phasor]}" | tr '[:upper:]' '[:lower:]')
+ENVIO_MONAD_POOL_FACTORY_ADDRESS=$(echo "${ADDRESSES[PoolFactory]}" | tr '[:upper:]' '[:lower:]')
+ENVEOF
 
     cd ../..
 
-    log_info "Subgraphs available at:"
-    log_info "  V2: http://127.0.0.1:8000/subgraphs/name/phasor-v2"
-    log_info "  Tokens: http://127.0.0.1:8000/subgraphs/name/phasor-v2-tokens"
+    log_success "Envio indexer config updated"
 }
 
 # ============================================================================
-# Step 10: Print Summary
+# Step 7: Deploy Envio Indexer
+# ============================================================================
+
+deploy_subgraph_background() {
+    log_step "Step 7: Envio indexer setup..."
+
+    log_success "Envio indexer config updated. Start the indexer manually:"
+    echo ""
+    echo -e "  ${CYAN}cd packages/envio-indexer && pnpm dev${NC}"
+    echo ""
+    echo -e "  GraphQL: ${YELLOW}http://localhost:8080/v1/graphql${NC}"
+    echo -e "  Console: ${YELLOW}http://localhost:8080/console${NC} (password: testing)"
+    echo ""
+}
+
+# ============================================================================
+# Step 9: Print Summary
 # ============================================================================
 
 print_summary() {
@@ -1080,9 +1012,10 @@ print_summary() {
     echo -e "${GREEN}${BOLD}  Deployment Complete!${NC}"
     echo -e "${GREEN}${BOLD}========================================${NC}"
     echo ""
-    echo -e "${CYAN}${BOLD}DEX Contract Addresses:${NC}"
-    echo -e "  Factory:  ${ADDRESSES[Factory]}"
-    echo -e "  Router:   ${ADDRESSES[Router]}"
+    echo -e "${CYAN}${BOLD}DEX Contract Addresses (Velodrome Pool System):${NC}"
+    echo -e "  PoolFactory:       ${ADDRESSES[PoolFactory]}"
+    echo -e "  FactoryRegistry:   ${ADDRESSES[FactoryRegistry]}"
+    echo -e "  Router:            ${ADDRESSES[Router]}"
     echo ""
     echo -e "${CYAN}${BOLD}Velodrome Fork - ve(3,3) Governance:${NC}"
     echo -e "  Phasor Token:        ${ADDRESSES[Phasor]}"
@@ -1091,15 +1024,8 @@ print_summary() {
     echo -e "  RewardsDistributor:  ${ADDRESSES[RewardsDistributor]}"
     echo -e "  Minter:              ${ADDRESSES[Minter]}"
     echo ""
-    echo -e "${CYAN}${BOLD}MISO Launchpad (SushiSwap Fork):${NC}"
-    echo -e "  MISOAccessControls:  ${ADDRESSES[MISOAccessControls]}"
-    echo -e "  MISOMarket:          ${ADDRESSES[MISOMarket]}"
-    echo -e "  MISOLauncher:        ${ADDRESSES[MISOLauncher]}"
-    echo -e "  BatchAuction:        ${ADDRESSES[BatchAuction]}"
-    echo -e "  Crowdsale:           ${ADDRESSES[Crowdsale]}"
-    echo -e "  DutchAuction:        ${ADDRESSES[DutchAuction]}"
-    echo -e "  HyperbolicAuction:   ${ADDRESSES[HyperbolicAuction]}"
-    echo -e "  PostAuctionLauncher: ${ADDRESSES[PostAuctionLauncher]}"
+    echo -e "${CYAN}${BOLD}VelodromeLauncher (Launchpad):${NC}"
+    echo -e "  VelodromeLauncher:   ${ADDRESSES[VelodromeLauncher]}"
     echo ""
     echo -e "${CYAN}${BOLD}Tokens Deployed (8):${NC}"
     echo -e "  WMON:     ${ADDRESSES[WMON]} (18 decimals)"
@@ -1122,7 +1048,11 @@ print_summary() {
     echo -e "${CYAN}${BOLD}Configuration Updated:${NC}"
     echo -e "  ${GREEN}✓${NC} Frontend .env.local"
     echo -e "  ${GREEN}✓${NC} Token list JSON"
-    echo -e "  ${GREEN}✓${NC} Subgraph configs"
+    echo -e "  ${GREEN}✓${NC} Envio indexer config"
+    echo ""
+    echo -e "${CYAN}${BOLD}Envio Indexer:${NC}"
+    echo -e "  GraphQL: ${YELLOW}http://localhost:8080/v1/graphql${NC}"
+    echo -e "  Console: ${YELLOW}http://localhost:8080/console${NC} (password: testing)"
     echo ""
     echo -e "${CYAN}${BOLD}Test Account:${NC}"
     echo -e "  Address: ${YELLOW}$DEPLOYER_ADDR${NC}"
@@ -1207,7 +1137,6 @@ main() {
     check_anvil
 
     compile_contracts
-    calculate_and_update_hash
     deploy_contracts
     create_liquidity_pools
     setup_staking_system
@@ -1215,15 +1144,8 @@ main() {
     update_frontend_env
     update_token_list
     update_subgraph_config
-    deploy_subgraph_background
-
-    # Wait for subgraph to start indexing before generating historical data
-    if [ "$SKIP_HISTORY" != true ]; then
-        log_info "Waiting 5 seconds for subgraph to initialize..."
-        sleep 5
-    fi
-
     generate_historical_data
+    deploy_subgraph_background
     print_summary
 }
 

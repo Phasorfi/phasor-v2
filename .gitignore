@@ -9,3 +9,6 @@ vitest.config.*.timestamp*
 
 # Docker volumes
 data/
+
+# forge deployments
+deployments/

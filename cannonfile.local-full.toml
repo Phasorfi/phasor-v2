@@ -10,20 +10,21 @@ privateSourceCode = false
 owner = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 
 # ============================================================================
-# Core DEX (Uniswap V2)
+# Core DEX (Velodrome Pool System)
 # ============================================================================
 
 # Deploy WMON (Wrapped Monad) - WETH9 implementation
 [deploy.WMON]
-artifact = "packages/periphery/contracts/test/WETH9.sol:WETH9"
+artifact = "packages/velodrome-fork/contracts/test/WETH9.sol:WETH9"
 
-[deploy.UniswapV2Factory]
-artifact = "packages/core/contracts/UniswapV2Factory.sol:UniswapV2Factory"
-args = ["<%= settings.owner %>"]
+# Pool implementation (used as template for cloning)
+[deploy.PoolImplementation]
+artifact = "packages/velodrome-fork/contracts/Pool.sol:Pool"
 
-[deploy.UniswapV2Router]
-artifact = "UniswapV2Router02"
-args = ["<%= contracts.UniswapV2Factory.address %>", "<%= contracts.WMON.address %>"]
+# PoolFactory - creates Pool clones (replaces UniswapV2Factory)
+[deploy.PoolFactory]
+artifact = "packages/velodrome-fork/contracts/factories/PoolFactory.sol:PoolFactory"
+args = ["<%= contracts.PoolImplementation.address %>"]
 
 # ============================================================================
 # Test Tokens
@@ -31,28 +32,29 @@ args = ["<%= contracts.UniswapV2Factory.address %>", "<%= contracts.WMON.address
 
 # Stablecoins (6 decimals, large supply for realistic liquidity pools)
 [deploy.USDC]
-artifact = "packages/core/contracts/test/MockUSDC.sol:MockUSDC"
+artifact = "packages/velodrome-fork/contracts/test/MockUSDC.sol:MockUSDC"
 args = ["<%= BigInt(10000000000000) %>"]  # 10,000,000 * 10^6
 
 [deploy.USDT]
-artifact = "packages/core/contracts/test/MockUSDT.sol:MockUSDT"
+artifact = "packages/velodrome-fork/contracts/test/MockUSDT.sol:MockUSDT"
 args = ["<%= BigInt(10000000000000) %>"]  # 10,000,000 * 10^6
 
 # Volatile assets with custom decimals
 [deploy.WETH]
-artifact = "packages/periphery/contracts/test/WETH9.sol:WETH9"
+artifact = "packages/velodrome-fork/contracts/test/MockWETH.sol:MockWETH"
+args = ["<%= BigInt(10000000000000000000000) %>"]  # 1,000 * 10^18
 
 [deploy.WBTC]
-artifact = "packages/core/contracts/test/MockWBTC.sol:MockWBTC"
+artifact = "packages/velodrome-fork/contracts/test/MockWBTC.sol:MockWBTC"
 args = ["<%= BigInt(1000000000000) %>"]  # 10,000 * 10^8
 
 [deploy.SOL]
-artifact = "packages/core/contracts/test/MockSOL.sol:MockSOL"
+artifact = "packages/velodrome-fork/contracts/test/MockSOL.sol:MockSOL"
 args = ["<%= BigInt(10000000000000) %>"]  # 10,000 * 10^9
 
 # DeFi token (6 decimals)
 [deploy.FOLKS]
-artifact = "packages/core/contracts/test/MockFOLKS.sol:MockFOLKS"
+artifact = "packages/velodrome-fork/contracts/test/MockFOLKS.sol:MockFOLKS"
 args = ["<%= BigInt(5000000000000) %>"]  # 5,000,000 * 10^6
 
 # ============================================================================
@@ -108,7 +110,7 @@ libraries.BalanceLogicLibrary = "<%= contracts.BalanceLogicLibrary.address %>"
 [deploy.FactoryRegistry]
 artifact = "packages/velodrome-fork/contracts/factories/FactoryRegistry.sol:FactoryRegistry"
 args = [
-    "<%= contracts.UniswapV2Factory.address %>",
+    "<%= contracts.PoolFactory.address %>",
     "<%= contracts.VotingRewardsFactory.address %>",
     "<%= contracts.GaugeFactory.address %>",
     "<%= contracts.ManagedRewardsFactory.address %>"
@@ -159,6 +161,17 @@ args = [
     "<%= contracts.RewardsDistributor.address %>"
 ]
 
+# Velodrome Router (replaces UniswapV2Router02)
+[deploy.Router]
+artifact = "packages/velodrome-fork/contracts/Router.sol:Router"
+args = [
+    "<%= contracts.Forwarder.address %>",
+    "<%= contracts.FactoryRegistry.address %>",
+    "<%= contracts.PoolFactory.address %>",
+    "<%= contracts.Voter.address %>",
+    "<%= contracts.WMON.address %>"
+]
+
 
 # ============================================================================
 # Velodrome Configuration
@@ -204,85 +217,22 @@ args = ["<%= contracts.Minter.address %>"]
 
 
 # ============================================================================
-# MISO Launchpad (SushiSwap Fork with ve-gating)
+# VelodromeLauncher - Simple Token Sale with Velodrome Integration
 # ============================================================================
 
-# Access Controls - manages permissions for MISO ecosystem
-[deploy.MISOAccessControls]
-artifact = "packages/miso-fork/contracts/Access/MISOAccessControls.sol:MISOAccessControls"
-
-# Clone Factory (BoringFactory pattern for deploying auction clones)
-[deploy.BoringFactory]
-artifact = "packages/miso-fork/contracts/Utils/BoringFactory.sol:BoringFactory"
-
-# Auction Templates
-[deploy.BatchAuction]
-artifact = "packages/miso-fork/contracts/Auctions/BatchAuction.sol:BatchAuction"
-
-[deploy.Crowdsale]
-artifact = "packages/miso-fork/contracts/Auctions/Crowdsale.sol:Crowdsale"
-
-[deploy.DutchAuction]
-artifact = "packages/miso-fork/contracts/Auctions/DutchAuction.sol:DutchAuction"
-
-[deploy.HyperbolicAuction]
-artifact = "packages/miso-fork/contracts/Auctions/HyperbolicAuction.sol:HyperbolicAuction"
-
-# Post-Auction Liquidity Launcher - uses YOUR DEX Factory/Router
-[deploy.PostAuctionLauncher]
-artifact = "packages/miso-fork/contracts/Liquidity/PostAuctionLauncher.sol:PostAuctionLauncher"
-args = ["<%= contracts.WMON.address %>"]
-
-# Market Factory - creates auction clones
-[deploy.MISOMarket]
-artifact = "packages/miso-fork/contracts/MISOMarket.sol:MISOMarket"
-
-# Liquidity Launcher Factory
-[deploy.MISOLauncher]
-artifact = "packages/miso-fork/contracts/MISOLauncher.sol:MISOLauncher"
-
-# ============================================================================
-# MISO Initialization (ordered via depends flags)
-# ============================================================================
-
-# Step 1: Initialize access controls - sets deployer as DEFAULT_ADMIN_ROLE
-[invoke.init_miso_access]
-target = ["MISOAccessControls"]
-func = "initAccessControls"
-args = ["<%= settings.owner %>"]
-
-# Step 2: Grant operator role to deployer (requires admin role from step 1)
-[invoke.grant_operator_role]
-target = ["MISOAccessControls"]
-func = "addOperatorRole"
-args = ["<%= settings.owner %>"]
-depends = ["invoke.init_miso_access"]
-
-# Step 3: Initialize MISOMarket with access controls, factory, and auction templates
-[invoke.init_miso_market]
-target = ["MISOMarket"]
-func = "initMISOMarket"
+# Deploy VelodromeLauncher - handles token sales, liquidity creation, and gauge staking
+[deploy.VelodromeLauncher]
+artifact = "packages/velodrome-fork/contracts/launchpad/VelodromeLauncher.sol:VelodromeLauncher"
 args = [
-    "<%= contracts.MISOAccessControls.address %>",
-    "<%= contracts.BoringFactory.address %>",
-    ["<%= contracts.BatchAuction.address %>", "<%= contracts.Crowdsale.address %>", "<%= contracts.DutchAuction.address %>", "<%= contracts.HyperbolicAuction.address %>"]
+    "<%= contracts.Router.address %>",
+    "<%= contracts.PoolFactory.address %>",
+    "<%= contracts.Voter.address %>",
+    "<%= settings.owner %>"  # locker address (can be updated later)
 ]
-depends = ["invoke.init_miso_access"]
 
-# Step 4: Initialize MISOLauncher with access controls and factory
-[invoke.init_miso_launcher]
-target = ["MISOLauncher"]
-func = "initMISOLauncher"
-args = [
-    "<%= contracts.MISOAccessControls.address %>",
-    "<%= contracts.BoringFactory.address %>"
-]
-depends = ["invoke.init_miso_access"]
-
-# Step 5: Add PostAuctionLauncher as a liquidity launcher template (requires operator role)
-[invoke.add_launcher_template]
-target = ["MISOLauncher"]
-func = "addLiquidityLauncherTemplate"
-args = ["<%= contracts.PostAuctionLauncher.address %>"]
-depends = ["invoke.grant_operator_role", "invoke.init_miso_launcher"]
+# Configure ve-gating for VelodromeLauncher (optional - set to require 1 veNFT)
+[invoke.set_launcher_ve_gating]
+target = ["VelodromeLauncher"]
+func = "setVeGating"
+args = ["<%= contracts.VotingEscrow.address %>", "1"]
 
