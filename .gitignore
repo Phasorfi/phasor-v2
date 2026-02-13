@@ -12,3 +12,5 @@ data/
 
 # forge deployments
 deployments/
+
+.vscode/

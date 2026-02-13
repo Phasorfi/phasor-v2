@@ -6,6 +6,8 @@
     "build": "tsc --build",
     "watch": "tsc --watch",
     "dev": "envio dev",
+    "dev:local": "cp .env.development .env && envio dev",
+    "dev:testnet": "cp .env.production .env && envio dev",
     "codegen": "envio codegen",
     "start": "ts-node generated/src/Index.bs.js",
     "dottest": "jest --watch --verbose=false",

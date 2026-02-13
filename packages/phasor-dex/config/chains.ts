@@ -51,7 +51,7 @@ export const CONTRACTS = {
   GAUGE: process.env.NEXT_PUBLIC_GAUGE_ADDRESS as Address,
   VOTER: process.env.NEXT_PUBLIC_VOTER_ADDRESS as Address,
   REWARDS_DISTRIBUTOR: process.env.NEXT_PUBLIC_REWARDS_DISTRIBUTOR_ADDRESS as Address,
-  MISO_MARKET: process.env.NEXT_PUBLIC_MISO_MARKET_ADDRESS as Address,
+  VELODROME_LAUNCHER: process.env.NEXT_PUBLIC_VELODROME_LAUNCHER_ADDRESS as Address,
 } as const;
 
 // ============================================

@@ -23,6 +23,7 @@ export interface Pool {
   reserve1: bigint;
   totalSupply: bigint;
   fee: number; // 0.3% = 30
+  isStable?: boolean;
   // Optional metrics - may not be available for new/inactive pools
   tvlUSD?: number;
   volume24hUSD?: number;
@@ -116,6 +117,7 @@ export interface VeNFT {
   tokenId: bigint;
   locked: LockedBalance;
   votingPower: bigint;
+  voted: boolean;
 }
 
 // ============================================
@@ -140,56 +142,67 @@ export interface StakingPoolInfo {
 }
 
 // ============================================
-// LAUNCHPAD TYPES (MISO Auctions)
+// LAUNCHPAD TYPES (VelodromeLauncher)
 // ============================================
 
-export type AuctionType = 1 | 2 | 3 | 4; // 1=Crowdsale, 2=Dutch, 3=Batch, 4=Hyperbolic
+export type SaleState = 'pending' | 'active' | 'success' | 'failed' | 'finalized' | 'cancelled';
 
-export const AUCTION_TYPE_LABELS: Record<number, string> = {
-  1: "Crowdsale",
-  2: "Dutch Auction",
-  3: "Batch Auction",
-  4: "Hyperbolic Auction",
-};
-
-export interface AuctionInfo {
-  auctionToken: Address;
-  paymentCurrency: Address;
-  totalTokens: bigint;
+export interface SaleInfo {
+  saleId: number;
+  token: Address;
+  baseToken: Address;
+  tokenAmount: bigint;
+  price: bigint;
+  raised: bigint;
+  softCap: bigint;
+  hardCap: bigint;
   startTime: number;
   endTime: number;
-  auctionType: number;
-  goal: bigint; // Crowdsale goal (0 for other types)
-}
-
-export interface AuctionStatus {
-  commitmentsTotal: bigint;
-  auctionSuccessful: boolean;
-  auctionEnded: boolean;
   finalized: boolean;
-  tokenPrice: bigint;
+  cancelled: boolean;
 }
 
-export type LaunchState = 'pending' | 'active' | 'success' | 'failed' | 'finalized';
-
-export interface LaunchInfo {
-  address: Address;
-  auctionInfo: AuctionInfo;
-  auctionStatus: AuctionStatus;
-  state: LaunchState;
-  saleTokenSymbol?: string;
-  saleTokenName?: string;
-  saleTokenDecimals?: number;
-  paymentTokenSymbol?: string;
-  paymentTokenDecimals?: number;
+export interface SaleTokenMeta {
+  symbol: string;
+  name: string;
+  decimals: number;
 }
 
-export interface UserLaunchInfo {
-  commitment: bigint;
-  tokensClaimable: bigint;
-  claimed: bigint;
+export interface UserSaleInfo {
+  contribution: bigint;
+  canParticipate: boolean;
 }
 
-// Keep old names as aliases for gradual migration
-export type SaleInfo = AuctionInfo;
-export type SaleStatus = AuctionStatus;
+// ============================================
+// VOTING TYPES (Voter / Gauge)
+// ============================================
+
+export interface PoolVoteInfo {
+  pool: Address;
+  gauge: Address;
+  token0Symbol: string;
+  token1Symbol: string;
+  isStable: boolean;
+  isAlive: boolean;
+  weight: bigint;
+  weightPercent: number;
+  userVote: bigint;
+  feeAddress: Address;
+  incentiveAddress: Address;
+}
+
+export interface EpochInfo {
+  epochStart: number;
+  epochEnd: number;
+  voteStart: number;
+  voteEnd: number;
+}
+
+// ============================================
+// REWARDS TYPES (RewardsDistributor)
+// ============================================
+
+export interface RebaseReward {
+  tokenId: bigint;
+  claimable: bigint;
+}

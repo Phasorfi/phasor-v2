@@ -35,9 +35,9 @@ export default function GovernancePage() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-display font-bold">Governance</h1>
+          <h1 className="text-3xl font-display font-bold">Lock</h1>
           <p className="text-muted-foreground mt-1">
-            Lock PHASOR to receive vePHASOR voting power and boost your staking rewards
+            Lock PHASOR to receive vePHASOR voting power and earn rewards
           </p>
         </div>
 

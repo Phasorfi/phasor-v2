@@ -92,7 +92,7 @@ export function useVotingEscrow(lockAmount?: string) {
       .map((r) => r.result as bigint);
   }, [tokenIdResults]);
 
-  // Fetch lock data and voting power for each token ID
+  // Fetch lock data, voting power, and voted status for each token ID
   const lockContracts = useMemo(() => {
     if (!tokenIds || tokenIds.length === 0) return [];
     return tokenIds.flatMap((tokenId) => [
@@ -108,6 +108,12 @@ export function useVotingEscrow(lockAmount?: string) {
         functionName: "balanceOfNFT" as const,
         args: [tokenId],
       },
+      {
+        address: CONTRACTS.VOTING_ESCROW as Address,
+        abi: VOTING_ESCROW_ABI,
+        functionName: "voted" as const,
+        args: [tokenId],
+      },
     ]);
   }, [tokenIds]);
 
@@ -120,8 +126,9 @@ export function useVotingEscrow(lockAmount?: string) {
     if (!tokenIds || !lockData || tokenIds.length === 0) return [];
     const nfts: VeNFT[] = [];
     for (let i = 0; i < tokenIds.length; i++) {
-      const lockedResult = lockData[i * 2];
-      const votingPowerResult = lockData[i * 2 + 1];
+      const lockedResult = lockData[i * 3];
+      const votingPowerResult = lockData[i * 3 + 1];
+      const votedResult = lockData[i * 3 + 2];
       if (lockedResult?.status === "success" && votingPowerResult?.status === "success") {
         // Velodrome LockedBalance: { int128 amount, uint256 end, bool isPermanent }
         const locked = lockedResult.result as { amount: bigint; end: bigint; isPermanent: boolean };
@@ -131,6 +138,7 @@ export function useVotingEscrow(lockAmount?: string) {
           tokenId: tokenIds[i],
           locked: { amount, end: Number(locked.end), isPermanent: locked.isPermanent },
           votingPower: votingPowerResult.result as bigint,
+          voted: votedResult?.status === "success" ? (votedResult.result as boolean) : false,
         });
       }
     }
@@ -193,11 +201,30 @@ export function useVotingEscrow(lockAmount?: string) {
     writeLock({ address: CONTRACTS.VOTING_ESCROW, abi: VOTING_ESCROW_ABI, functionName: "withdraw", args: [tokenId] });
   }, [account, writeLock]);
 
+  const merge = useCallback(async (fromTokenId: bigint, toTokenId: bigint) => {
+    if (!account || !CONTRACTS.VOTING_ESCROW) return;
+    setError(null);
+    writeLock({ address: CONTRACTS.VOTING_ESCROW, abi: VOTING_ESCROW_ABI, functionName: "merge", args: [fromTokenId, toTokenId] });
+  }, [account, writeLock]);
+
+  const lockPermanent = useCallback(async (tokenId: bigint) => {
+    if (!account || !CONTRACTS.VOTING_ESCROW) return;
+    setError(null);
+    writeLock({ address: CONTRACTS.VOTING_ESCROW, abi: VOTING_ESCROW_ABI, functionName: "lockPermanent", args: [tokenId] });
+  }, [account, writeLock]);
+
+  const unlockPermanent = useCallback(async (tokenId: bigint) => {
+    if (!account || !CONTRACTS.VOTING_ESCROW) return;
+    setError(null);
+    writeLock({ address: CONTRACTS.VOTING_ESCROW, abi: VOTING_ESCROW_ABI, functionName: "unlockPermanent", args: [tokenId] });
+  }, [account, writeLock]);
+
   const refetch = useCallback(() => { refetchAllowance(); refetchNftCount(); refetchTokenIdResults(); refetchLocks(); }, [refetchAllowance, refetchNftCount, refetchTokenIdResults, refetchLocks]);
 
   return {
     userVeNFTs, totalLocked, totalVotingPower, phasorBalance, isLoading,
     createLock, increaseAmount, increaseUnlockTime, withdraw,
+    merge, lockPermanent, unlockPermanent,
     needsApproval, isApproving: isApprovePending || isApproveConfirming,
     isLocking: isLockPending, isConfirming: isLockConfirming, isSuccess: isLockSuccess,
     approve, refetch, error, calculateVotingPower,

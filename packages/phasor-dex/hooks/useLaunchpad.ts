@@ -1,176 +1,297 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
+import {
+  useAccount,
+  useWriteContract,
+  useWaitForTransactionReceipt,
+  useReadContract,
+  useReadContracts,
+} from "wagmi";
 import { Address, erc20Abi, parseUnits } from "viem";
-import { LaunchInfo, AuctionInfo, AuctionStatus, LaunchState, UserLaunchInfo } from "@/types";
+import { SaleInfo, SaleState, SaleTokenMeta, UserSaleInfo } from "@/types";
 import { CONTRACTS } from "@/config/chains";
-import { MISO_MARKET_ABI } from "@/config/abis/launchpadFactory";
-import { MISO_AUCTION_ABI } from "@/config/abis/fairLaunch";
+import { VELODROME_LAUNCHER_ABI } from "@/config/abis/velodromeLauncher";
+import { ERC20_ABI } from "@/config/abis";
 
-export function useLaunchpad() {
-  const { address: account } = useAccount();
-  const [error, setError] = useState<string | null>(null);
+// ============================================
+// Derive sale state from on-chain data
+// ============================================
 
-  const { data: launchAddresses = [], refetch: refetchLaunches, isLoading } = useReadContract({
-    address: CONTRACTS.MISO_MARKET, abi: MISO_MARKET_ABI, functionName: "getMarkets",
-    query: { enabled: !!CONTRACTS.MISO_MARKET },
-  });
-
-  const { data: launchCount = BigInt(0) } = useReadContract({
-    address: CONTRACTS.MISO_MARKET, abi: MISO_MARKET_ABI, functionName: "numberOfAuctions",
-    query: { enabled: !!CONTRACTS.MISO_MARKET },
-  });
-
-  return { launchAddresses: launchAddresses as Address[], launchCount: Number(launchCount), isLoading, refetch: refetchLaunches, error };
+function deriveSaleState(sale: SaleInfo): SaleState {
+  if (sale.cancelled) return "cancelled";
+  if (sale.finalized) return "finalized";
+  const now = Math.floor(Date.now() / 1000);
+  if (now < sale.startTime) return "pending";
+  if (now <= sale.endTime) return "active";
+  // Ended but not finalized
+  if (sale.raised >= sale.softCap) return "success";
+  return "failed";
 }
 
-export function useAuction(auctionAddress: Address | null, contributeAmount?: string) {
+// ============================================
+// useLaunchpad - List all sales
+// ============================================
+
+export interface LaunchpadSale {
+  sale: SaleInfo;
+  state: SaleState;
+  tokenMeta?: SaleTokenMeta;
+  baseTokenMeta?: SaleTokenMeta;
+}
+
+export function useLaunchpad() {
+  const launcherAddress = CONTRACTS.VELODROME_LAUNCHER;
+
+  const { data: saleCount = BigInt(0), isLoading: isCountLoading } = useReadContract({
+    address: launcherAddress,
+    abi: VELODROME_LAUNCHER_ABI,
+    functionName: "saleCount",
+    query: { enabled: !!launcherAddress },
+  });
+
+  const count = Number(saleCount);
+
+  // Multicall getSale for each saleId
+  const saleContracts = useMemo(() => {
+    if (!launcherAddress || count === 0) return [];
+    return Array.from({ length: count }, (_, i) => ({
+      address: launcherAddress,
+      abi: VELODROME_LAUNCHER_ABI,
+      functionName: "getSale" as const,
+      args: [BigInt(i)] as const,
+    }));
+  }, [launcherAddress, count]);
+
+  const { data: saleResults, isLoading: isSalesLoading, refetch: refetchSales } = useReadContracts({
+    contracts: saleContracts,
+    query: { enabled: saleContracts.length > 0 },
+  });
+
+  // Parse sale data into SaleInfo[]
+  const sales = useMemo((): SaleInfo[] => {
+    if (!saleResults) return [];
+    return saleResults
+      .map((result, i) => {
+        if (result.status !== "success" || !result.result) return null;
+        const r = result.result as readonly [Address, Address, bigint, bigint, bigint, bigint, bigint, bigint, bigint, boolean, boolean];
+        return {
+          saleId: i,
+          token: r[0],
+          baseToken: r[1],
+          tokenAmount: r[2],
+          price: r[3],
+          raised: r[4],
+          softCap: r[5],
+          hardCap: r[6],
+          startTime: Number(r[7]),
+          endTime: Number(r[8]),
+          finalized: r[9],
+          cancelled: r[10],
+        } satisfies SaleInfo;
+      })
+      .filter((s): s is SaleInfo => s !== null);
+  }, [saleResults]);
+
+  // Batch ERC20 metadata for all unique token addresses
+  const tokenAddresses = useMemo(() => {
+    const set = new Set<Address>();
+    sales.forEach((s) => {
+      set.add(s.token);
+      if (s.baseToken !== "0x0000000000000000000000000000000000000000") {
+        set.add(s.baseToken);
+      }
+    });
+    return Array.from(set);
+  }, [sales]);
+
+  const metaContracts = useMemo(() => {
+    return tokenAddresses.flatMap((addr) => [
+      { address: addr, abi: ERC20_ABI, functionName: "symbol" as const },
+      { address: addr, abi: ERC20_ABI, functionName: "name" as const },
+      { address: addr, abi: ERC20_ABI, functionName: "decimals" as const },
+    ]);
+  }, [tokenAddresses]);
+
+  const { data: metaResults } = useReadContracts({
+    contracts: metaContracts,
+    query: { enabled: metaContracts.length > 0 },
+  });
+
+  const tokenMetaMap = useMemo((): Record<string, SaleTokenMeta> => {
+    const map: Record<string, SaleTokenMeta> = {};
+    if (!metaResults) return map;
+    tokenAddresses.forEach((addr, i) => {
+      const base = i * 3;
+      const symbol = metaResults[base]?.result as string | undefined;
+      const name = metaResults[base + 1]?.result as string | undefined;
+      const decimals = metaResults[base + 2]?.result as number | undefined;
+      if (symbol && name && decimals !== undefined) {
+        map[addr.toLowerCase()] = { symbol, name, decimals };
+      }
+    });
+    return map;
+  }, [metaResults, tokenAddresses]);
+
+  // Combine into LaunchpadSale[]
+  const launchpadSales = useMemo((): LaunchpadSale[] => {
+    return sales.map((sale) => ({
+      sale,
+      state: deriveSaleState(sale),
+      tokenMeta: tokenMetaMap[sale.token.toLowerCase()],
+      baseTokenMeta: sale.baseToken !== "0x0000000000000000000000000000000000000000"
+        ? tokenMetaMap[sale.baseToken.toLowerCase()]
+        : undefined,
+    }));
+  }, [sales, tokenMetaMap]);
+
+  return {
+    sales: launchpadSales,
+    saleCount: count,
+    isLoading: isCountLoading || isSalesLoading,
+    refetch: refetchSales,
+  };
+}
+
+// ============================================
+// useSale - Single sale detail + write actions
+// ============================================
+
+export function useSale(saleId: number | null, contributeAmount?: string) {
   const { address: account } = useAccount();
   const [error, setError] = useState<string | null>(null);
+  const launcherAddress = CONTRACTS.VELODROME_LAUNCHER;
 
   const parsedAmount = useMemo(() => {
     if (!contributeAmount) return BigInt(0);
     try { return parseUnits(contributeAmount, 18); } catch { return BigInt(0); }
   }, [contributeAmount]);
 
-  // ---- Base information ----
+  // ---- Sale data ----
 
-  const { data: baseInfo, refetch: refetchBaseInfo } = useReadContract({
-    address: auctionAddress as Address, abi: MISO_AUCTION_ABI, functionName: "getBaseInformation",
-    query: { enabled: !!auctionAddress },
+  const { data: saleData, refetch: refetchSale } = useReadContract({
+    address: launcherAddress,
+    abi: VELODROME_LAUNCHER_ABI,
+    functionName: "getSale",
+    args: saleId !== null ? [BigInt(saleId)] : undefined,
+    query: { enabled: saleId !== null && !!launcherAddress },
   });
 
-  const { data: totalTokens = BigInt(0) } = useReadContract({
-    address: auctionAddress as Address, abi: MISO_AUCTION_ABI, functionName: "getTotalTokens",
-    query: { enabled: !!auctionAddress },
+  const sale = useMemo((): SaleInfo | null => {
+    if (saleId === null || !saleData) return null;
+    const r = saleData as readonly [Address, Address, bigint, bigint, bigint, bigint, bigint, bigint, bigint, boolean, boolean];
+    return {
+      saleId,
+      token: r[0],
+      baseToken: r[1],
+      tokenAmount: r[2],
+      price: r[3],
+      raised: r[4],
+      softCap: r[5],
+      hardCap: r[6],
+      startTime: Number(r[7]),
+      endTime: Number(r[8]),
+      finalized: r[9],
+      cancelled: r[10],
+    };
+  }, [saleId, saleData]);
+
+  const saleState = useMemo((): SaleState => {
+    if (!sale) return "pending";
+    return deriveSaleState(sale);
+  }, [sale]);
+
+  // ---- Token metadata ----
+
+  const tokenMetaContracts = useMemo(() => {
+    if (!sale) return [];
+    const contracts: { address: Address; abi: typeof ERC20_ABI; functionName: "symbol" | "name" | "decimals" }[] = [
+      { address: sale.token, abi: ERC20_ABI, functionName: "symbol" },
+      { address: sale.token, abi: ERC20_ABI, functionName: "name" },
+      { address: sale.token, abi: ERC20_ABI, functionName: "decimals" },
+    ];
+    if (sale.baseToken !== "0x0000000000000000000000000000000000000000") {
+      contracts.push(
+        { address: sale.baseToken, abi: ERC20_ABI, functionName: "symbol" },
+        { address: sale.baseToken, abi: ERC20_ABI, functionName: "name" },
+        { address: sale.baseToken, abi: ERC20_ABI, functionName: "decimals" },
+      );
+    }
+    return contracts;
+  }, [sale]);
+
+  const { data: tokenMetaResults } = useReadContracts({
+    contracts: tokenMetaContracts,
+    query: { enabled: tokenMetaContracts.length > 0 },
   });
 
-  const { data: paymentCurrency } = useReadContract({
-    address: auctionAddress as Address, abi: MISO_AUCTION_ABI, functionName: "paymentCurrency",
-    query: { enabled: !!auctionAddress },
+  const tokenMeta = useMemo((): SaleTokenMeta | undefined => {
+    if (!tokenMetaResults || tokenMetaResults.length < 3) return undefined;
+    const symbol = tokenMetaResults[0]?.result as string | undefined;
+    const name = tokenMetaResults[1]?.result as string | undefined;
+    const decimals = tokenMetaResults[2]?.result as number | undefined;
+    if (symbol && name && decimals !== undefined) return { symbol, name, decimals };
+    return undefined;
+  }, [tokenMetaResults]);
+
+  const baseTokenMeta = useMemo((): SaleTokenMeta | undefined => {
+    if (!tokenMetaResults || tokenMetaResults.length < 6) return undefined;
+    const symbol = tokenMetaResults[3]?.result as string | undefined;
+    const name = tokenMetaResults[4]?.result as string | undefined;
+    const decimals = tokenMetaResults[5]?.result as number | undefined;
+    if (symbol && name && decimals !== undefined) return { symbol, name, decimals };
+    return undefined;
+  }, [tokenMetaResults]);
+
+  // ---- User data ----
+
+  const { data: userContribution = BigInt(0), refetch: refetchContribution } = useReadContract({
+    address: launcherAddress,
+    abi: VELODROME_LAUNCHER_ABI,
+    functionName: "getContribution",
+    args: saleId !== null && account ? [BigInt(saleId), account] : undefined,
+    query: { enabled: saleId !== null && !!account && !!launcherAddress },
   });
 
-  // ---- Auction type (from MISOMarket factory) ----
-
-  const { data: auctionType = BigInt(0) } = useReadContract({
-    address: CONTRACTS.MISO_MARKET, abi: MISO_MARKET_ABI, functionName: "getMarketTemplateId",
-    args: auctionAddress ? [auctionAddress] : undefined,
-    query: { enabled: !!auctionAddress && !!CONTRACTS.MISO_MARKET },
+  const { data: canParticipate = false } = useReadContract({
+    address: launcherAddress,
+    abi: VELODROME_LAUNCHER_ABI,
+    functionName: "canParticipate",
+    args: account ? [account] : undefined,
+    query: { enabled: !!account && !!launcherAddress },
   });
 
-  // ---- Status ----
+  const userSaleInfo = useMemo((): UserSaleInfo | null => {
+    if (!account) return null;
+    return {
+      contribution: userContribution as bigint,
+      canParticipate: canParticipate as boolean,
+    };
+  }, [account, userContribution, canParticipate]);
 
-  const { data: commitmentsTotal = BigInt(0), refetch: refetchCommitmentsTotal } = useReadContract({
-    address: auctionAddress as Address, abi: MISO_AUCTION_ABI, functionName: "commitmentsTotal",
-    query: { enabled: !!auctionAddress },
-  });
+  // ---- BaseToken allowance (ERC20 approval) ----
 
-  const { data: auctionSuccessful = false } = useReadContract({
-    address: auctionAddress as Address, abi: MISO_AUCTION_ABI, functionName: "auctionSuccessful",
-    query: { enabled: !!auctionAddress },
-  });
-
-  const { data: auctionEnded = false } = useReadContract({
-    address: auctionAddress as Address, abi: MISO_AUCTION_ABI, functionName: "auctionEnded",
-    query: { enabled: !!auctionAddress },
-  });
-
-  const { data: isFinalized = false } = useReadContract({
-    address: auctionAddress as Address, abi: MISO_AUCTION_ABI, functionName: "finalized",
-    query: { enabled: !!auctionAddress },
-  });
-
-  const { data: tokenPrice = BigInt(0) } = useReadContract({
-    address: auctionAddress as Address, abi: MISO_AUCTION_ABI, functionName: "tokenPrice",
-    query: { enabled: !!auctionAddress },
-  });
-
-  // ---- Crowdsale goal (may revert for non-Crowdsale types, that's ok) ----
-
-  const { data: goal = BigInt(0) } = useReadContract({
-    address: auctionAddress as Address, abi: MISO_AUCTION_ABI, functionName: "goal",
-    query: { enabled: !!auctionAddress && Number(auctionType) === 1 },
-  });
-
-  // ---- Per-user ----
-
-  const { data: userCommitment = BigInt(0), refetch: refetchCommitment } = useReadContract({
-    address: auctionAddress as Address, abi: MISO_AUCTION_ABI, functionName: "commitments",
-    args: account ? [account] : undefined, query: { enabled: !!auctionAddress && !!account },
-  });
-
-  const { data: userTokensClaimable = BigInt(0) } = useReadContract({
-    address: auctionAddress as Address, abi: MISO_AUCTION_ABI, functionName: "tokensClaimable",
-    args: account ? [account] : undefined, query: { enabled: !!auctionAddress && !!account },
-  });
-
-  const { data: userClaimed = BigInt(0) } = useReadContract({
-    address: auctionAddress as Address, abi: MISO_AUCTION_ABI, functionName: "claimed",
-    args: account ? [account] : undefined, query: { enabled: !!auctionAddress && !!account },
-  });
-
-  // ---- Payment token allowance (for token-based auctions) ----
-
-  const isETHPayment = !paymentCurrency || paymentCurrency === "0x0000000000000000000000000000000000000000";
-
-  const { data: paymentAllowance = BigInt(0), refetch: refetchAllowance } = useReadContract({
-    address: paymentCurrency as Address, abi: erc20Abi, functionName: "allowance",
-    args: account && auctionAddress ? [account, auctionAddress] : undefined,
-    query: { enabled: !!account && !!auctionAddress && !isETHPayment },
+  const { data: allowance = BigInt(0), refetch: refetchAllowance } = useReadContract({
+    address: sale?.baseToken,
+    abi: erc20Abi,
+    functionName: "allowance",
+    args: account && launcherAddress ? [account, launcherAddress] : undefined,
+    query: { enabled: !!account && !!launcherAddress && !!sale?.baseToken && sale.baseToken !== "0x0000000000000000000000000000000000000000" },
   });
 
   const needsApproval = useMemo(() => {
     if (!parsedAmount || parsedAmount === BigInt(0)) return false;
-    if (isETHPayment) return false;
-    return paymentAllowance < parsedAmount;
-  }, [paymentAllowance, parsedAmount, isETHPayment]);
+    if (!sale || sale.baseToken === "0x0000000000000000000000000000000000000000") return false;
+    return (allowance as bigint) < parsedAmount;
+  }, [allowance, parsedAmount, sale]);
 
-  // ---- Derived state ----
+  // ---- BaseToken balance ----
 
-  const launchState = useMemo((): LaunchState => {
-    if (!baseInfo) return "pending";
-    const now = Math.floor(Date.now() / 1000);
-    const startTime = Number(baseInfo[2]);
-    const endTime = Number(baseInfo[3]);
-    const finalized = baseInfo[4] as boolean;
-    if (finalized || isFinalized) return "finalized";
-    if (now < startTime) return "pending";
-    if (now <= endTime && !auctionEnded) return "active";
-    if (auctionSuccessful) return "success";
-    return "failed";
-  }, [baseInfo, auctionSuccessful, auctionEnded, isFinalized]);
-
-  const auctionInfo = useMemo((): AuctionInfo | null => {
-    if (!baseInfo || !paymentCurrency) return null;
-    return {
-      auctionToken: baseInfo[0] as Address,
-      paymentCurrency,
-      totalTokens: totalTokens,
-      startTime: Number(baseInfo[2]),
-      endTime: Number(baseInfo[3]),
-      auctionType: Number(auctionType),
-      goal,
-    };
-  }, [baseInfo, paymentCurrency, totalTokens, auctionType, goal]);
-
-  const auctionStatus = useMemo((): AuctionStatus | null => {
-    return {
-      commitmentsTotal,
-      auctionSuccessful,
-      auctionEnded,
-      finalized: isFinalized,
-      tokenPrice,
-    };
-  }, [commitmentsTotal, auctionSuccessful, auctionEnded, isFinalized, tokenPrice]);
-
-  const launchInfo = useMemo((): LaunchInfo | null => {
-    if (!auctionAddress || !auctionInfo || !auctionStatus) return null;
-    return { address: auctionAddress, auctionInfo, auctionStatus, state: launchState };
-  }, [auctionAddress, auctionInfo, auctionStatus, launchState]);
-
-  const userLaunchInfo = useMemo((): UserLaunchInfo | null => {
-    if (!account) return null;
-    return { commitment: userCommitment, tokensClaimable: userTokensClaimable, claimed: userClaimed };
-  }, [account, userCommitment, userTokensClaimable, userClaimed]);
+  const { data: baseTokenBalance = BigInt(0) } = useReadContract({
+    address: sale?.baseToken,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: account ? [account] : undefined,
+    query: { enabled: !!account && !!sale?.baseToken && sale.baseToken !== "0x0000000000000000000000000000000000000000" },
+  });
 
   // ---- Write hooks ----
 
@@ -182,50 +303,78 @@ export function useAuction(auctionAddress: Address | null, contributeAmount?: st
   useEffect(() => { if (approveError) setError(approveError.message); }, [approveError]);
   useEffect(() => { if (actionError) setError(actionError.message); }, [actionError]);
   useEffect(() => { if (isApproveSuccess) setTimeout(() => refetchAllowance(), 500); }, [isApproveSuccess, refetchAllowance]);
-  useEffect(() => { if (isActionSuccess) setTimeout(() => { refetchCommitmentsTotal(); refetchCommitment(); refetchBaseInfo(); }, 500); }, [isActionSuccess, refetchCommitmentsTotal, refetchCommitment, refetchBaseInfo]);
+  useEffect(() => { if (isActionSuccess) setTimeout(() => { refetchSale(); refetchContribution(); }, 500); }, [isActionSuccess, refetchSale, refetchContribution]);
 
   // ---- Actions ----
 
   const approve = useCallback(async () => {
-    if (!account || !auctionAddress || !paymentCurrency || isETHPayment) return;
+    if (!account || !launcherAddress || !sale) return;
     setError(null);
-    writeApprove({ address: paymentCurrency, abi: erc20Abi, functionName: "approve", args: [auctionAddress, parsedAmount] });
-  }, [account, auctionAddress, paymentCurrency, isETHPayment, parsedAmount, writeApprove]);
+    writeApprove({
+      address: sale.baseToken,
+      abi: erc20Abi,
+      functionName: "approve",
+      args: [launcherAddress, parsedAmount],
+    });
+  }, [account, launcherAddress, sale, parsedAmount, writeApprove]);
 
   const contribute = useCallback(async (amount: string) => {
-    if (!account || !auctionAddress) return;
+    if (!account || !launcherAddress || saleId === null) return;
     setError(null);
-    const parsed = parseUnits(amount, 18);
-    if (isETHPayment) {
-      writeAction({ address: auctionAddress, abi: MISO_AUCTION_ABI, functionName: "commitEth", args: [account, true], value: parsed });
-    } else {
-      writeAction({ address: auctionAddress, abi: MISO_AUCTION_ABI, functionName: "commitTokens", args: [parsed, true] });
-    }
-  }, [account, auctionAddress, isETHPayment, writeAction]);
+    const parsed = parseUnits(amount, baseTokenMeta?.decimals ?? 18);
+    writeAction({
+      address: launcherAddress,
+      abi: VELODROME_LAUNCHER_ABI,
+      functionName: "contribute",
+      args: [BigInt(saleId), parsed],
+    });
+  }, [account, launcherAddress, saleId, baseTokenMeta, writeAction]);
 
   const claim = useCallback(async () => {
-    if (!account || !auctionAddress) return;
+    if (!account || !launcherAddress || saleId === null) return;
     setError(null);
-    writeAction({ address: auctionAddress, abi: MISO_AUCTION_ABI, functionName: "withdrawTokens", args: [] });
-  }, [account, auctionAddress, writeAction]);
+    writeAction({
+      address: launcherAddress,
+      abi: VELODROME_LAUNCHER_ABI,
+      functionName: "claim",
+      args: [BigInt(saleId)],
+    });
+  }, [account, launcherAddress, saleId, writeAction]);
 
-  // In MISO, withdrawTokens handles both claim and refund
-  const withdraw = claim;
+  const refund = useCallback(async () => {
+    if (!account || !launcherAddress || saleId === null) return;
+    setError(null);
+    writeAction({
+      address: launcherAddress,
+      abi: VELODROME_LAUNCHER_ABI,
+      functionName: "refund",
+      args: [BigInt(saleId)],
+    });
+  }, [account, launcherAddress, saleId, writeAction]);
 
   const refetch = useCallback(() => {
-    refetchBaseInfo(); refetchCommitmentsTotal(); refetchCommitment(); refetchAllowance();
-  }, [refetchBaseInfo, refetchCommitmentsTotal, refetchCommitment, refetchAllowance]);
+    refetchSale();
+    refetchContribution();
+    refetchAllowance();
+  }, [refetchSale, refetchContribution, refetchAllowance]);
 
   return {
-    launchInfo, userLaunchInfo,
-    isActive: launchState === "active",
-    auctionSuccessful,
-    contribute, claim, withdraw, needsApproval,
+    sale,
+    saleState,
+    tokenMeta,
+    baseTokenMeta,
+    userSaleInfo,
+    baseTokenBalance: baseTokenBalance as bigint,
+    needsApproval,
     isApproving: isApprovePending || isApproveConfirming,
-    isContributing: isActionPending, isConfirming: isActionConfirming, isSuccess: isActionSuccess,
-    approve, refetch, error,
+    isContributing: isActionPending,
+    isConfirming: isActionConfirming,
+    isSuccess: isActionSuccess,
+    approve,
+    contribute,
+    claim,
+    refund,
+    refetch,
+    error,
   };
 }
-
-// Backward-compatible alias
-export const useFairLaunch = useAuction;

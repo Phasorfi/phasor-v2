@@ -5,28 +5,34 @@ import { Gift, AlertTriangle, CheckCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAccount } from "wagmi";
-import { Address, formatUnits } from "viem";
-import { useFairLaunch } from "@/hooks/useLaunchpad";
+import { formatUnits } from "viem";
+import { useSale } from "@/hooks/useLaunchpad";
 
 interface ClaimCardProps {
-  launchAddress: Address;
+  saleId: number;
   isRefund?: boolean;
   onSuccess?: () => void;
 }
 
-export function ClaimCard({ launchAddress, isRefund = false, onSuccess }: ClaimCardProps) {
+export function ClaimCard({ saleId, isRefund = false, onSuccess }: ClaimCardProps) {
   const { isConnected } = useAccount();
   const {
-    userLaunchInfo, claim, withdraw, isContributing, isConfirming, error,
-  } = useFairLaunch(launchAddress);
+    sale, tokenMeta, baseTokenMeta, userSaleInfo,
+    isContributing, isConfirming, claim, refund, error,
+  } = useSale(saleId);
 
-  const hasCommitment = userLaunchInfo && userLaunchInfo.commitment > BigInt(0);
-  const hasClaimed = userLaunchInfo ? userLaunchInfo.claimed > BigInt(0) : false;
+  const hasContribution = userSaleInfo && userSaleInfo.contribution > BigInt(0);
+  const baseDecimals = baseTokenMeta?.decimals ?? 18;
+  const tokenDecimals = tokenMeta?.decimals ?? 18;
 
-  const handleClaim = async () => {
-    // In MISO, withdrawTokens handles both claim and refund
+  // Estimate tokens claimable: (contribution / raised) * tokenAmount
+  const tokensClaimable = sale && sale.raised > BigInt(0) && userSaleInfo
+    ? (userSaleInfo.contribution * sale.tokenAmount) / sale.raised
+    : BigInt(0);
+
+  const handleAction = async () => {
     if (isRefund) {
-      await withdraw();
+      await refund();
     } else {
       await claim();
     }
@@ -51,26 +57,18 @@ export function ClaimCard({ launchAddress, isRefund = false, onSuccess }: ClaimC
         </CardTitle>
         <CardDescription>
           {isRefund
-            ? "The auction was not successful. Withdraw your contribution."
-            : "Claim your allocated tokens from the successful auction."}
+            ? "The sale was not successful. Withdraw your contribution."
+            : "Claim your allocated tokens from the successful sale."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {!isConnected ? (
           <div className="text-center py-4">
-            <p className="text-muted-foreground">Connect your wallet to claim</p>
+            <p className="text-muted-foreground">Connect your wallet to {isRefund ? "withdraw" : "claim"}</p>
           </div>
-        ) : !hasCommitment ? (
+        ) : !hasContribution ? (
           <div className="text-center py-4">
-            <p className="text-muted-foreground">You did not participate in this auction</p>
-          </div>
-        ) : hasClaimed ? (
-          <div className="text-center py-8">
-            <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-4" />
-            <p className="font-medium">Already Claimed</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              You have already claimed your {isRefund ? "refund" : "tokens"}
-            </p>
+            <p className="text-muted-foreground">You did not participate in this sale</p>
           </div>
         ) : (
           <>
@@ -81,20 +79,22 @@ export function ClaimCard({ launchAddress, isRefund = false, onSuccess }: ClaimC
               </p>
               <p className="text-4xl font-bold">
                 {isRefund
-                  ? parseFloat(formatUnits(userLaunchInfo?.commitment ?? BigInt(0), 18)).toFixed(4)
-                  : parseFloat(formatUnits(userLaunchInfo?.tokensClaimable ?? BigInt(0), 18)).toFixed(4)}
+                  ? parseFloat(formatUnits(userSaleInfo?.contribution ?? BigInt(0), baseDecimals)).toFixed(4)
+                  : parseFloat(formatUnits(tokensClaimable, tokenDecimals)).toFixed(4)}
               </p>
               <p className="text-sm text-muted-foreground mt-1">
-                {isRefund ? "MON" : "tokens"}
+                {isRefund
+                  ? (baseTokenMeta?.symbol ?? "tokens")
+                  : (tokenMeta?.symbol ?? "tokens")}
               </p>
             </div>
 
             {/* Stats */}
             <div className="text-sm">
               <div className="flex justify-between py-2">
-                <span className="text-muted-foreground">Your Commitment</span>
+                <span className="text-muted-foreground">Your Contribution</span>
                 <span className="font-medium">
-                  {parseFloat(formatUnits(userLaunchInfo?.commitment ?? BigInt(0), 18)).toFixed(4)}
+                  {parseFloat(formatUnits(userSaleInfo?.contribution ?? BigInt(0), baseDecimals)).toFixed(4)} {baseTokenMeta?.symbol ?? ""}
                 </span>
               </div>
             </div>
@@ -104,12 +104,12 @@ export function ClaimCard({ launchAddress, isRefund = false, onSuccess }: ClaimC
               <p className="text-sm text-destructive">{error}</p>
             )}
 
-            {/* Claim Button */}
+            {/* Action Button */}
             <Button
               className="w-full"
               size="lg"
               disabled={isContributing || isConfirming}
-              onClick={handleClaim}
+              onClick={handleAction}
             >
               {isContributing || isConfirming
                 ? isRefund ? "Withdrawing..." : "Claiming..."

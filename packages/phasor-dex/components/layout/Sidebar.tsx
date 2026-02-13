@@ -7,11 +7,13 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { cn } from "@/lib/utils";
 
 const navLinks = [
+  { href: "/dashboard", label: "Dashboard" },
   { href: "/", label: "Swap" },
-  { href: "/pools", label: "Pools" },
+  { href: "/liquidity", label: "Liquidity" },
+  { href: "/vote", label: "Vote" },
+  { href: "/governance", label: "Lock" },
+  { href: "/incentivize", label: "Incentivize" },
   { href: "/launchpad", label: "Launchpad" },
-  { href: "/staking", label: "Staking" },
-  { href: "/governance", label: "Governance" },
   { href: "/portfolio", label: "Portfolio" },
 ];
 
@@ -154,7 +156,7 @@ export function Sidebar() {
         </Link>
 
         {/* Mobile Nav */}
-        <nav className="flex items-center gap-4">
+        <nav className="flex items-center gap-3 overflow-x-auto">
           {navLinks.map((link) => {
             const isActive = link.href === "/"
               ? pathname === "/" || pathname === "/swap"

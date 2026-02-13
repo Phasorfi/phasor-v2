@@ -1,5 +1,3 @@
-# Fair Launch
-
 ## What is the Phasor Launchpad?
 
 The Phasor Launchpad is a platform for new projects to conduct transparent, on-chain token sales. It provides a simple, fair mechanism for distributing tokens and bootstrapping liquidity — all in a single, trustless process.
