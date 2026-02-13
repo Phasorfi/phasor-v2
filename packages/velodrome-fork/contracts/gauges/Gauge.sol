@@ -43,9 +43,9 @@ contract Gauge is IGauge, ERC2771Context, ReentrancyGuardTransient {
     // This is a custom addition to Velodrome code. See CHANGES.md for documentation.
     // Rewards long-term stakers with bonus emissions (1x → 3x over 90 days).
     // ============================================================================
-    uint256 public constant TIME_MULTIPLIER_MIN = 1e18;        // 1x base multiplier
-    uint256 public constant TIME_MULTIPLIER_MAX = 3e18;        // 3x maximum multiplier
-    uint256 public constant TIME_MULTIPLIER_PERIOD = 90 days;  // Time to reach max
+    uint256 public constant TIME_MULTIPLIER_MIN = 1e18; // 1x base multiplier
+    uint256 public constant TIME_MULTIPLIER_MAX = 3e18; // 3x maximum multiplier
+    uint256 public constant TIME_MULTIPLIER_PERIOD = 90 days; // Time to reach max
 
     /// @inheritdoc IGauge
     uint256 public periodFinish;
@@ -123,8 +123,9 @@ contract Gauge is IGauge, ERC2771Context, ReentrancyGuardTransient {
         if (totalSupply == 0) {
             return rewardPerTokenStored;
         }
-        return rewardPerTokenStored
-            + ((lastTimeRewardApplicable() - lastUpdateTime) * rewardRate * PRECISION) / totalSupply;
+        return
+            rewardPerTokenStored + ((lastTimeRewardApplicable() - lastUpdateTime) * rewardRate * PRECISION)
+                / totalSupply;
     }
 
     /// @inheritdoc IGauge
@@ -171,8 +172,7 @@ contract Gauge is IGauge, ERC2771Context, ReentrancyGuardTransient {
         if (elapsed >= TIME_MULTIPLIER_PERIOD) return TIME_MULTIPLIER_MAX;
 
         // Linear interpolation from MIN to MAX over TIME_MULTIPLIER_PERIOD
-        return TIME_MULTIPLIER_MIN +
-            ((TIME_MULTIPLIER_MAX - TIME_MULTIPLIER_MIN) * elapsed) / TIME_MULTIPLIER_PERIOD;
+        return TIME_MULTIPLIER_MIN + ((TIME_MULTIPLIER_MAX - TIME_MULTIPLIER_MIN) * elapsed) / TIME_MULTIPLIER_PERIOD;
     }
 
     /// @inheritdoc IGauge

@@ -63,11 +63,7 @@ contract Router is IRouter, ERC2771Context {
     }
 
     /// @inheritdoc IRouter
-    function poolFor(address tokenA, address tokenB, bool stable, address _factory)
-        public
-        view
-        returns (address pool)
-    {
+    function poolFor(address tokenA, address tokenB, bool stable, address _factory) public view returns (address pool) {
         address _defaultFactory = defaultFactory;
         address factory = _factory == address(0) ? _defaultFactory : _factory;
         if (!IFactoryRegistry(factoryRegistry).isPoolFactoryApproved(factory)) revert PoolFactoryDoesNotExist();
@@ -211,8 +207,9 @@ contract Router is IRouter, ERC2771Context {
         address to,
         uint256 deadline
     ) public ensure(deadline) returns (uint256 amountA, uint256 amountB, uint256 liquidity) {
-        (amountA, amountB) =
-            _addLiquidity(tokenA, tokenB, stable, amountADesired, amountBDesired, amountAMin, amountBMin);
+        (amountA, amountB) = _addLiquidity(
+            tokenA, tokenB, stable, amountADesired, amountBDesired, amountAMin, amountBMin
+        );
         address pool = poolFor(tokenA, tokenB, stable, defaultFactory);
         _safeTransferFrom(tokenA, _msgSender(), pool, amountA);
         _safeTransferFrom(tokenB, _msgSender(), pool, amountB);
@@ -310,9 +307,8 @@ contract Router is IRouter, ERC2771Context {
             address to = i < routes.length - 1
                 ? poolFor(routes[i + 1].from, routes[i + 1].to, routes[i + 1].stable, routes[i + 1].factory)
                 : _to;
-            IPool(poolFor(routes[i].from, routes[i].to, routes[i].stable, routes[i].factory)).swap(
-                amount0Out, amount1Out, to, new bytes(0)
-            );
+            IPool(poolFor(routes[i].from, routes[i].to, routes[i].stable, routes[i].factory))
+                .swap(amount0Out, amount1Out, to, new bytes(0));
         }
     }
 

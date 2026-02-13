@@ -19,9 +19,13 @@ library PerlinNoise {
      *      and `ptable` were written.
      */
     function noise2d(int256 x, int256 y) public pure returns (int256) {
-        int256 temp = ptable(x >> 16 & 0xff /* Unit square X */ );
+        int256 temp = ptable(
+            x >> 16 & 0xff /* Unit square X */
+        );
 
-        int256 a = ptable((temp >> 8) + (y >> 16 & 0xff) /* Unit square Y */ );
+        int256 a = ptable(
+            (temp >> 8) + (y >> 16 & 0xff) /* Unit square Y */
+        );
         int256 b = ptable((temp & 0xff) + (y >> 16 & 0xff));
 
         x &= 0xffff; // Square relative X

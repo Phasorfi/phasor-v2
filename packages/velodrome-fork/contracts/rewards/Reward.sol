@@ -102,19 +102,14 @@ abstract contract Reward is IReward, ERC2771Context, ReentrancyGuardTransient {
     /// @inheritdoc IReward
     function getPriorSupplyIndex(uint256 timestamp) public view returns (uint256) {
         return BalanceLogicLibrary.getPastGlobalPointIndex({
-            _epoch: epoch,
-            _pointHistory: _globalRewardPointHistory,
-            _timestamp: timestamp
+            _epoch: epoch, _pointHistory: _globalRewardPointHistory, _timestamp: timestamp
         });
     }
 
     /// @inheritdoc IReward
     function supplyAt(uint256 timestamp) public view returns (uint256) {
         return BalanceLogicLibrary.supplyAt({
-            _slopeChanges: slopeChanges,
-            _pointHistory: _globalRewardPointHistory,
-            _epoch: epoch,
-            _t: timestamp
+            _slopeChanges: slopeChanges, _pointHistory: _globalRewardPointHistory, _epoch: epoch, _t: timestamp
         });
     }
 
@@ -151,8 +146,7 @@ abstract contract Reward is IReward, ERC2771Context, ReentrancyGuardTransient {
 
         // accounts for case where lastEarn is before first checkpoint
         _currTs = Math.max({
-            a: _currTs,
-            b: VelodromeTimeLibrary.epochStart({timestamp: _userRewardPointHistory[tokenId][_index].ts})
+            a: _currTs, b: VelodromeTimeLibrary.epochStart({timestamp: _userRewardPointHistory[tokenId][_index].ts})
         });
 
         // get epochs between current epoch and first checkpoint in same epoch as last claim
@@ -416,10 +410,10 @@ abstract contract Reward is IReward, ERC2771Context, ReentrancyGuardTransient {
 
         if (totalWeight == amount) return 0;
 
-        int128 mainSlope = IVotingEscrow(ve).userPointHistory({
-            _tokenId: tokenId,
-            _loc: IVotingEscrow(ve).userPointEpoch({_tokenId: tokenId})
-        }).slope;
+        int128 mainSlope =
+            IVotingEscrow(ve)
+        .userPointHistory({_tokenId: tokenId, _loc: IVotingEscrow(ve).userPointEpoch({_tokenId: tokenId})})
+        .slope;
 
         uint256 ratio = totalWeight / amount;
 

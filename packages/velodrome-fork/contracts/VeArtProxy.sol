@@ -200,10 +200,9 @@ contract VeArtProxy is IVeArtProxy {
 
     /// @inheritdoc IVeArtProxy
     function twoStripes(Config memory cfg, int256 l) public pure returns (Point[100] memory Line) {
-        int256 k = (
-            (l % 2) * ((200 + cfg.seed3) + (l * 1250 / cfg.maxLines))
-                + ((l + 1) % 2) * ((2200 + cfg.seed2) + (l * 1250 / cfg.maxLines))
-        );
+        int256 k =
+            ((l % 2) * ((200 + cfg.seed3) + (l * 1250 / cfg.maxLines)) + ((l + 1) % 2)
+                * ((2200 + cfg.seed2) + (l * 1250 / cfg.maxLines)));
         int256 i1 = cfg.seed1 % 2;
         int256 i2 = (cfg.seed1 + 1) % 2;
         int256 o1 = i1 * k;
@@ -273,8 +272,7 @@ contract VeArtProxy is IVeArtProxy {
         for (int256 p = 0; p < 100; p++) {
             int256 angle3 = 360 * l / cfg.maxLines + (360 * p / 99);
             Line[uint256(p)] = Point({
-                x: baseX + k * Trig.dcos(angle3) / 1e6,
-                y: baseY + ((l % 2) * 2 - 1) * k * Trig.dsin(angle3) / 1e6
+                x: baseX + k * Trig.dcos(angle3) / 1e6, y: baseY + ((l % 2) * 2 - 1) * k * Trig.dsin(angle3) / 1e6
             });
         }
     }
@@ -371,7 +369,8 @@ contract VeArtProxy is IVeArtProxy {
 
         for (int256 p = 0; p < 100; p++) {
             Line[uint256(p)] = Point({
-                x: baseX * (99 - p) / 99 + 250 * cosine / 1e6 + cosine * (5000 * p / 99) * (99 - p) / 99 / 1e6 + p * k1 / 99,
+                x: baseX * (99 - p) / 99 + 250 * cosine / 1e6 + cosine * (5000 * p / 99) * (99 - p) / 99 / 1e6 + p * k1
+                    / 99,
                 y: baseY * (99 - p) / 99 + 250 * sine / 1e6 + sine * (5000 * p / 99) * (99 - p) / 99 / 1e6 + p * k2 / 99
             });
         }

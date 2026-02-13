@@ -131,8 +131,8 @@ contract VotingEscrow is IVotingEscrow, ERC2771Context, ReentrancyGuardTransient
         escrowType[_mTokenId] = EscrowType.MANAGED;
 
         (address _lockedManagedReward, address _freeManagedReward) = IManagedRewardsFactory(
-            IFactoryRegistry(factoryRegistry).managedRewardsFactory()
-        ).createRewards(forwarder, voter);
+                IFactoryRegistry(factoryRegistry).managedRewardsFactory()
+            ).createRewards(forwarder, voter);
         managedToLocked[_mTokenId] = _lockedManagedReward;
         managedToFree[_mTokenId] = _freeManagedReward;
 
@@ -205,8 +205,9 @@ contract VotingEscrow is IVotingEscrow, ERC2771Context, ReentrancyGuardTransient
         // adjust managed nft
         LockedBalance memory newLockedManaged = _locked[_mTokenId];
         // do not expect _total > locked.amount / permanentLockBalance but just in case
-        newLockedManaged.amount -=
-            (_total.toInt128() < newLockedManaged.amount ? _total.toInt128() : newLockedManaged.amount);
+        newLockedManaged.amount -= (_total.toInt128() < newLockedManaged.amount
+                    ? _total.toInt128()
+                    : newLockedManaged.amount);
         permanentLockBalance -= (_total < permanentLockBalance ? _total : permanentLockBalance);
         _checkpointDelegatee(_delegates[_mTokenId], _total, false);
         _checkpoint(_mTokenId, _locked[_mTokenId], newLockedManaged);
@@ -745,7 +746,7 @@ contract VotingEscrow is IVotingEscrow, ERC2771Context, ReentrancyGuardTransient
         // Set newLocked to _oldLocked without mangling memory
         LockedBalance memory newLocked;
         (newLocked.amount, newLocked.end, newLocked.isPermanent) =
-            (_oldLocked.amount, _oldLocked.end, _oldLocked.isPermanent);
+        (_oldLocked.amount, _oldLocked.end, _oldLocked.isPermanent);
 
         // Adding to existing lock, or if a lock is expired - creating a new one
         newLocked.amount += _value.toInt128();
@@ -1181,7 +1182,9 @@ contract VotingEscrow is IVotingEscrow, ERC2771Context, ReentrancyGuardTransient
         // with 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141 - s1 and flip v from 27 to 28 or
         // vice versa. If your library also generates signatures with 0/1 for v instead 27/28, add 27 to v to accept
         // these malleable signatures as well.
-        if (uint256(s) > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0) revert InvalidSignatureS();
+        if (uint256(s) > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0) {
+            revert InvalidSignatureS();
+        }
         bytes32 domainSeparator = keccak256(
             abi.encode(DOMAIN_TYPEHASH, keccak256(bytes(name)), keccak256(bytes(version)), block.chainid, address(this))
         );

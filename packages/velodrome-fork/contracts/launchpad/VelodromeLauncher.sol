@@ -21,11 +21,7 @@ interface IVeloRouter {
 }
 
 interface IVeloFactory {
-    function getPool(
-        address tokenA,
-        address tokenB,
-        bool stable
-    ) external view returns (address);
+    function getPool(address tokenA, address tokenB, bool stable) external view returns (address);
 }
 
 interface IVeloVoter {
@@ -59,13 +55,13 @@ contract VelodromeLauncher is Ownable, ReentrancyGuard {
 
     // Sale state
     struct Sale {
-        address token;           // Project token being sold
-        address baseToken;       // Payment token (USDC/ETH)
-        uint256 tokenAmount;     // Total tokens for sale
-        uint256 price;           // Price per token in baseToken (with baseToken decimals)
-        uint256 raised;          // Total baseToken raised
-        uint256 softCap;         // Minimum raise amount
-        uint256 hardCap;         // Maximum raise amount
+        address token; // Project token being sold
+        address baseToken; // Payment token (USDC/ETH)
+        uint256 tokenAmount; // Total tokens for sale
+        uint256 price; // Price per token in baseToken (with baseToken decimals)
+        uint256 raised; // Total baseToken raised
+        uint256 softCap; // Minimum raise amount
+        uint256 hardCap; // Maximum raise amount
         uint256 startTime;
         uint256 endTime;
         bool finalized;
@@ -97,22 +93,14 @@ contract VelodromeLauncher is Ownable, ReentrancyGuard {
 
     modifier onlyVeHolders() {
         if (votingEscrow != address(0) && minVeBalance > 0) {
-            require(
-                IVotingEscrow(votingEscrow).balanceOf(msg.sender) >= minVeBalance,
-                "Must own vePHASOR NFT"
-            );
+            require(IVotingEscrow(votingEscrow).balanceOf(msg.sender) >= minVeBalance, "Must own vePHASOR NFT");
         }
         _;
     }
 
     // ========== CONSTRUCTOR ==========
 
-    constructor(
-        address _router,
-        address _factory,
-        address _voter,
-        address _locker
-    ) Ownable(msg.sender) {
+    constructor(address _router, address _factory, address _voter, address _locker) Ownable(msg.sender) {
         require(_router != address(0), "Invalid router");
         require(_factory != address(0), "Invalid factory");
         require(_voter != address(0), "Invalid voter");
@@ -248,9 +236,7 @@ contract VelodromeLauncher is Ownable, ReentrancyGuard {
     function refund(uint256 saleId) external nonReentrant {
         Sale storage sale = sales[saleId];
         require(
-            sale.cancelled ||
-                (block.timestamp > sale.endTime && sale.raised < sale.softCap),
-            "Refund not available"
+            sale.cancelled || (block.timestamp > sale.endTime && sale.raised < sale.softCap), "Refund not available"
         );
 
         uint256 contribution = contributions[saleId][msg.sender];
@@ -268,10 +254,7 @@ contract VelodromeLauncher is Ownable, ReentrancyGuard {
     /// @notice Finalize sale and create liquidity + gauge
     /// @param saleId Sale ID to finalize
     /// @param liquidityPercent Percentage of raised funds for liquidity (basis points, e.g., 5000 = 50%)
-    function finalizeAndLaunch(
-        uint256 saleId,
-        uint256 liquidityPercent
-    ) external onlyOwner nonReentrant {
+    function finalizeAndLaunch(uint256 saleId, uint256 liquidityPercent) external onlyOwner nonReentrant {
         Sale storage sale = sales[saleId];
         require(!sale.finalized, "Already finalized");
         require(!sale.cancelled, "Sale cancelled");
@@ -290,7 +273,7 @@ contract VelodromeLauncher is Ownable, ReentrancyGuard {
         IERC20(sale.baseToken).forceApprove(address(router), baseForLiquidity);
 
         // 2. Add Liquidity (volatile pool)
-        (, , uint256 liquidity) = router.addLiquidity(
+        (,, uint256 liquidity) = router.addLiquidity(
             sale.token,
             sale.baseToken,
             false, // volatile pool
