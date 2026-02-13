@@ -6,16 +6,14 @@ Phasor DEX is currently deployed on **Monad Testnet** (chain ID 10143). Contract
 
 | Contract | Description | Address |
 |----------|-------------|---------|
-| PHASOR | Native governance token | *TBD* |
-| PoolFactory | Creates volatile and stable trading pools | *TBD* |
-| Router | Handles swaps and liquidity operations | *TBD* |
-| VotingEscrow | vePHASOR lock contract (veNFT) | *TBD* |
-| Voter | Gauge voting and emission distribution | *TBD* |
-| Minter | PHASOR emissions controller | *TBD* |
-| RewardsDistributor | Rebase distribution to vePHASOR holders | *TBD* |
-| VelodromeLauncher | Token sale launchpad | *TBD* |
-
-<!-- TODO: Fill with actual deployed addresses -->
+| PHASOR | Native governance token | 0x5772BDEF68FfD33E67cA82637D2afF03661f9b11 |
+| PoolFactory | Creates volatile and stable trading pools | 0x103e714f52bebF7f95A8d79abc5838d5b23d6f8b |
+| Router | Handles swaps and liquidity operations | 0x7de75500c99C13Da96AFf36554cE7316853715b0 |
+| VotingEscrow | vePHASOR lock contract (veNFT) | 0xdba565f8050e50f0D4B552DCc6F3F753561b0EB0 |
+| Voter | Gauge voting and emission distribution | 0x697d6463E6dffD0e08C4e1A51e7E4f1e977B8112 |
+| Minter | PHASOR emissions controller | 0x3E20d5855c54484D4071A535AB8241937BCA70e9 |
+| RewardsDistributor | Rebase distribution to vePHASOR holders | 0x37E6681Cdf4070a349Af23a7a89E760d07f50fFF |
+| VelodromeLauncher | Token sale launchpad | 0x9eBEaa7B2E35c8a15874578522c36B779E46cBB8 |
 
 ## Code Heritage & Audits
 

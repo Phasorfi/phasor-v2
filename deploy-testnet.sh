@@ -160,20 +160,16 @@ check_cannonfile() {
 
     log_success "Cannonfile found: $CANNONFILE"
 
-    # Extract key addresses from cannonfile
-    local deployer=$(grep -A 15 '\[var.main\]' "$CANNONFILE" | grep 'deployer' | head -1 | cut -d'"' -f2)
-    local safe=$(grep -A 15 '\[var.main\]' "$CANNONFILE" | grep 'safe' | head -1 | cut -d'"' -f2)
-    local wmon=$(grep -A 15 '\[var.main\]' "$CANNONFILE" | grep 'WMON' | head -1 | cut -d'"' -f2)
-    local usdc=$(grep -A 20 '\[var.main\]' "$CANNONFILE" | grep 'USDC' | head -1 | cut -d'"' -f2)
-    local weth=$(grep -A 20 '\[var.main\]' "$CANNONFILE" | grep 'WETH' | head -1 | cut -d'"' -f2)
-    local wbtc=$(grep -A 20 '\[var.main\]' "$CANNONFILE" | grep 'WBTC' | head -1 | cut -d'"' -f2)
+    # Extract key addresses from cannonfile (exclude comment lines with grep -v '^#')
+    local deployer=$(grep -A 20 '\[var.main\]' "$CANNONFILE" | grep -v '^#' | grep 'deployer' | head -1 | cut -d'"' -f2)
+    local safe=$(grep -A 20 '\[var.main\]' "$CANNONFILE" | grep -v '^#' | grep 'safe' | head -1 | cut -d'"' -f2)
+    local wmon=$(grep -A 20 '\[var.main\]' "$CANNONFILE" | grep -v '^#' | grep 'WMON' | head -1 | cut -d'"' -f2)
+    local usdc=$(grep -A 20 '\[var.main\]' "$CANNONFILE" | grep -v '^#' | grep 'USDC' | head -1 | cut -d'"' -f2)
 
     log_info "Deployer: $deployer"
     log_info "Multisig: $safe"
     log_info "WMON:     $wmon"
     log_info "USDC:     $usdc"
-    log_info "WETH:     $weth"
-    log_info "WBTC:     $wbtc"
 
     DEPLOYER_ADDR="$deployer"
     SAFE_ADDR="$safe"
@@ -181,10 +177,10 @@ check_cannonfile() {
 
     # Warn about zero-address tokens
     local zero="0x0000000000000000000000000000000000000000"
-    if [ "$usdc" = "$zero" ] || [ "$weth" = "$zero" ] || [ "$wbtc" = "$zero" ]; then
-        log_warning "Some token addresses are set to 0x0 (will still be whitelisted in Voter)"
-        log_warning "Update cannonfile.toml [var.main] with real testnet token addresses"
-        if ! confirm "Continue with zero-address tokens?"; then
+    if [ "$usdc" = "$zero" ]; then
+        log_warning "USDC address is set to 0x0"
+        log_warning "Update cannonfile.toml [var.main] with real testnet USDC address"
+        if ! confirm "Continue with zero-address USDC?"; then
             exit 1
         fi
     fi
@@ -333,6 +329,8 @@ estimate_gas() {
         --private-key "$DEPLOYER_PRIVATE_KEY" \
         --rpc-url "$RPC_URL" \
         --chain-id "$CHAIN_ID" \
+        --impersonate $DEPLOYER_ADDR \
+        --wipe \
         --dry-run 2>&1 | tee "$dry_run_log"
 
     local exit_code=${PIPESTATUS[0]}
@@ -376,18 +374,25 @@ deploy_contracts() {
     # Create deployment log file
     local timestamp=$(date +%Y%m%d_%H%M%S)
     local log_file="deployments/cannon-output-$timestamp.log"
+    mkdir -p deployments
 
-    # Deploy using Cannon
-    local deploy_output=$(npx @usecannon/cli build "$CANNONFILE" \
+    # Deploy using Cannon with real-time output piped to terminal AND log file
+    npx @usecannon/cli build "$CANNONFILE" \
         --private-key "$DEPLOYER_PRIVATE_KEY" \
         --rpc-url "$RPC_URL" \
         --chain-id "$CHAIN_ID" \
-        2>&1 | tee "$log_file")
+        --wipe \
+        2>&1 | tee "$log_file"
 
-    if [ $? -ne 0 ]; then
+    local exit_code=${PIPESTATUS[0]}
+
+    if [ $exit_code -ne 0 ]; then
         log_error "Deployment failed! Check logs: $log_file"
         exit 1
     fi
+
+    # Read the log file for address extraction
+    local deploy_output=$(cat "$log_file")
 
     # Extract addresses from deployment output
     log_step "Extracting contract addresses..."
@@ -504,12 +509,13 @@ verify_deployment() {
         errors=1
     fi
 
-    # Verify Minter team transferred to safe
-    local minter_team=$(cast call "${ADDRESSES[Minter]}" "team()(address)" --rpc-url "$RPC_URL" 2>/dev/null)
-    if [ "${minter_team,,}" = "${SAFE_ADDR,,}" ]; then
-        log_success "Minter.team = multisig"
+    # Verify Minter pendingTeam set to safe (Minter uses two-step transfer)
+    # Note: Minter.setTeam() sets pendingTeam, then multisig must call acceptTeam()
+    local minter_pending=$(cast call "${ADDRESSES[Minter]}" "pendingTeam()(address)" --rpc-url "$RPC_URL" 2>/dev/null)
+    if [ "${minter_pending,,}" = "${SAFE_ADDR,,}" ]; then
+        log_success "Minter.pendingTeam = multisig (awaiting acceptTeam() call)"
     else
-        log_error "Minter.team mismatch: expected $SAFE_ADDR, got $minter_team"
+        log_error "Minter.pendingTeam mismatch: expected $SAFE_ADDR, got $minter_pending"
         errors=1
     fi
 
@@ -606,6 +612,26 @@ EOF
     log_success "Envio .env.production updated: $env_file"
 }
 
+generate_envio_hosted_config() {
+    log_step "Generating Envio config.yaml..."
+
+    local config_template="packages/envio-indexer/config.testnet.yaml"
+    local config_output="packages/envio-indexer/config.yaml"
+
+    # Generate config.yaml from template with actual addresses
+    if [ -f "$config_template" ]; then
+        sed -e "s|__MONAD_RPC_URL__|$RPC_URL|g" \
+            -e "s|__START_BLOCK__|$DEPLOY_BLOCK|g" \
+            -e "s|__POOL_FACTORY_ADDRESS__|${ADDRESSES[PoolFactory]}|g" \
+            -e "s|__VOTER_ADDRESS__|${ADDRESSES[Voter]}|g" \
+            -e "s|__VOTING_ESCROW_ADDRESS__|${ADDRESSES[VotingEscrow]}|g" \
+            "$config_template" > "$config_output"
+        log_success "Generated: $config_output"
+    else
+        log_warning "Template not found: $config_template"
+    fi
+}
+
 generate_deployment_manifest() {
     log_step "Generating deployment manifest..."
 
@@ -697,26 +723,36 @@ print_summary() {
     echo -e "  Multisig:            $SAFE_ADDR"
     echo ""
     echo -e "${CYAN}${BOLD}Config Files Updated:${NC}"
-    echo -e "  Frontend:  packages/phasor-dex/.env.production"
-    echo -e "  Envio:     packages/envio-indexer/.env.production"
-    echo -e "  Manifest:  deployments/deployment-testnet-*.json"
+    echo -e "  Frontend:       packages/phasor-dex/.env.production"
+    echo -e "  Envio (local):  packages/envio-indexer/.env.production"
+    echo -e "  Envio (hosted): packages/envio-indexer/config.yaml"
+    echo -e "  Manifest:       deployments/deployment-testnet-*.json"
     echo ""
     echo -e "${YELLOW}${BOLD}Next Steps:${NC}"
     echo ""
-    echo "  1. Create initial liquidity pools:"
+    echo "  1. Accept Minter ownership via Safe UI:"
+    echo "     - Open Safe Transaction Builder"
+    echo "     - Contract: ${ADDRESSES[Minter]}"
+    echo "     - ABI: jq '.abi' out/Minter.sol/Minter.json"
+    echo "     - Function: acceptTeam()"
+    echo ""
+    echo "  2. Create initial liquidity pools:"
     echo "     See docs/deployment/POST_DEPLOYMENT_SETUP.md"
     echo ""
-    echo "  2. Deploy the Envio indexer:"
+    echo "  3. Deploy the Envio indexer:"
     echo "     cd packages/envio-indexer"
-    echo "     cp .env.production .env"
-    echo "     # Update config.yaml with PoolFactory address and start block"
-    echo "     envio dev"
     echo ""
-    echo "  3. Build frontend for testnet:"
+    echo "     Option A - Local development (uses env vars):"
+    echo "       cp .env.production .env && envio dev"
+    echo ""
+    echo "     Option B - Envio hosted (free plan):"
+    echo "       envio deploy  # config.yaml already generated"
+    echo ""
+    echo "  4. Build frontend for testnet:"
     echo "     cd packages/phasor-dex"
     echo "     next build  # automatically loads .env.production"
     echo ""
-    echo "  4. Verify contracts on block explorer:"
+    echo "  5. Verify contracts on block explorer:"
     echo "     https://testnet.monadexplorer.com"
     echo ""
 }
@@ -761,6 +797,7 @@ main() {
     if confirm "Update configuration files (frontend, envio, manifest)?"; then
         update_frontend_config
         update_envio_config
+        generate_envio_hosted_config
         generate_deployment_manifest
     else
         log_info "Skipped config updates. You can update them manually."

@@ -54,6 +54,14 @@ interface GetUserPositionsData {
   UserStatsPerPool: VelodromeUserStats[];
 }
 
+interface GetPoolsByAddressesData {
+  LiquidityPoolAggregator: VelodromePool[];
+}
+
+interface GetTokensByAddressesData {
+  Token: VelodromeToken[];
+}
+
 interface UseUserPositionsFromSubgraphResult {
   positions: UserPosition[];
   isLoading: boolean;
@@ -86,7 +94,7 @@ export function useUserPositionsFromSubgraph(): UseUserPositionsFromSubgraphResu
   }, [data]);
 
   // Fetch pool details for all user positions using batch query
-  const { data: poolsData } = useQuery(
+  const { data: poolsData } = useQuery<GetPoolsByAddressesData>(
     GET_POOLS_BY_ADDRESSES,
     {
       client: apolloClient,
@@ -111,7 +119,7 @@ export function useUserPositionsFromSubgraph(): UseUserPositionsFromSubgraphResu
   }, [poolsData]);
 
   // Fetch token metadata
-  const { data: tokensData } = useQuery(
+  const { data: tokensData } = useQuery<GetTokensByAddressesData>(
     GET_TOKENS_BY_ADDRESSES,
     {
       client: apolloClient,

@@ -39,6 +39,10 @@ interface PoolData {
   token1_address: string;
 }
 
+interface PoolsData {
+  LiquidityPoolAggregator: PoolData[];
+}
+
 export function useUserTransactions(): UseUserTransactionsResult {
   const { address: userAddress } = useAccount();
   const chainId = useChainId();
@@ -58,7 +62,7 @@ export function useUserTransactions(): UseUserTransactionsResult {
     return data.UserStatsPerPool.map(s => s.poolAddress.toLowerCase());
   }, [data]);
 
-  const { data: poolsData } = useQuery(GET_POOLS_BY_ADDRESSES, {
+  const { data: poolsData } = useQuery<PoolsData>(GET_POOLS_BY_ADDRESSES, {
     client: apolloClient,
     variables: {
       poolAddresses,

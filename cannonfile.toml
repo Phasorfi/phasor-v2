@@ -20,12 +20,10 @@ deployer = "0x2022e2849b156A125EDB4806FA103d743f74cc74"
 # Multisig (final owner of all protocol contracts)
 safe = "0xB8C6C815B2B93394C21f944c5A061872B2765C75"
 # Existing WMON on Monad testnet
-WMON = "0xbbdbCfEf20072142e233F61eD26005c7d2983C5f"
+WMON = "0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541"
 # Existing testnet token addresses (for Voter whitelist)
 # UPDATE THESE before deploying - set to 0x0 to exclude from whitelist
-USDC = "0x0000000000000000000000000000000000000000"
-WETH = "0x0000000000000000000000000000000000000000"
-WBTC = "0x0000000000000000000000000000000000000000"
+USDC = "0x534b2f3A21130d7a60830c2Df862319e593943A3"
 
 # ============================================================================
 # Core DEX (Velodrome Pool System)
@@ -193,7 +191,7 @@ args = ["<%= settings.safe %>", "100000000000000000000000000"]
 target = ["Voter"]
 func = "initialize"
 args = [
-    ["<%= settings.WMON %>", "<%= settings.USDC %>", "<%= settings.WETH %>", "<%= settings.WBTC %>", "<%= contracts.Phasor.address %>"],
+    ["<%= settings.WMON %>", "<%= settings.USDC %>", "<%= contracts.Phasor.address %>"],
     "<%= contracts.Minter.address %>"
 ]
 
