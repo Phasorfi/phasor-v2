@@ -221,6 +221,15 @@ npm run start
 - Transaction deadline protection
 - No private keys are ever stored
 
+## Documentation
+
+For detailed technical documentation, see:
+
+- [Architecture Overview](../../docs/ARCHITECTURE.md)
+- [Frontend Documentation](../../docs/FRONTEND.md)
+- [Smart Contracts](../../docs/SMART_CONTRACTS.md)
+- [Infrastructure](../../docs/INFRASTRUCTURE.md)
+
 ## License
 
 MIT

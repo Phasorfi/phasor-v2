@@ -2,28 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: 'PP Supply Mono';
+  src: url('/fonts/PPSupplyMono-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+
 @layer base {
   :root {
-    --background: 240 10% 4%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 6%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 6%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 187 100% 50%;
-    --primary-foreground: 240 10% 4%;
-    --secondary: 240 5% 15%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 5% 18%;
-    --muted-foreground: 240 5% 65%;
-    --accent: 328 100% 50%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5% 18%;
-    --input: 240 5% 18%;
-    --ring: 187 100% 50%;
-    --radius: 0.75rem;
+    /* Dark purple/blue theme for Phasor */
+    --background: 240 15% 5%;     /* #0a0a12 - deep dark background */
+    --foreground: 0 0% 90%;       /* #e5e5e5 - bright white text */
+    --card: 240 10% 8%;           /* #121218 - slightly lighter cards */
+    --card-foreground: 0 0% 90%;
+    --popover: 240 10% 6%;        /* #0e0e14 - popover bg */
+    --popover-foreground: 0 0% 90%;
+    --primary: 270 60% 60%;       /* Purple accent */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 10% 12%;     /* #1a1a22 - darker elements */
+    --secondary-foreground: 0 0% 90%;
+    --muted: 240 10% 15%;         /* #222230 - muted elements */
+    --muted-foreground: 0 0% 55%; /* #8c8c8c - muted text */
+    --accent: 270 50% 50%;        /* Purple accent */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 60% 50%;     /* Red destructive */
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 10% 15%;        /* #222230 - subtle borders */
+    --input: 240 10% 10%;         /* #161620 - input background */
+    --ring: 270 60% 60%;          /* Purple focus ring */
+    --radius: 0.5rem;             /* Rounded corners */
   }
 }
 
@@ -43,16 +51,16 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: hsl(240 10% 6%);
+  background: hsl(0 0% 10%);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(240 5% 25%);
-  border-radius: 4px;
+  background: hsl(0 0% 25%);
+  border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(240 5% 35%);
+  background: hsl(0 0% 35%);
 }
 
 /* Phasor-specific utilities */
@@ -129,7 +137,7 @@
   position: fixed;
   border-radius: 50%;
   filter: blur(100px);
-  opacity: 0.3;
+  opacity: 0.05;
   pointer-events: none;
   z-index: -1;
 }
@@ -137,7 +145,7 @@
 .gradient-orb-1 {
   width: 600px;
   height: 600px;
-  background: radial-gradient(circle, rgba(0, 217, 255, 0.4) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
   top: -200px;
   right: -200px;
 }
@@ -145,7 +153,135 @@
 .gradient-orb-2 {
   width: 500px;
   height: 500px;
-  background: radial-gradient(circle, rgba(121, 40, 202, 0.3) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, transparent 70%);
   bottom: -150px;
   left: -150px;
+}
+
+/* Cosmic Smooth Waves - slow, spacey, organic */
+.space-wave-container {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.space-wave-container svg {
+  position: absolute;
+  width: 200%;
+  height: 100%;
+  left: -50%;
+}
+
+/* SVG wave paths - thin and dark */
+.wave-path-1 {
+  fill: none;
+  stroke: rgba(50, 60, 120, 0.25);
+  stroke-width: 25;
+  filter: blur(20px);
+  animation: wave-drift-1 25s ease-in-out infinite;
+}
+
+.wave-path-2 {
+  fill: none;
+  stroke: rgba(120, 100, 50, 0.2);
+  stroke-width: 20;
+  filter: blur(18px);
+  animation: wave-drift-2 30s ease-in-out infinite;
+}
+
+.wave-path-3 {
+  fill: none;
+  stroke: rgba(40, 50, 100, 0.2);
+  stroke-width: 30;
+  filter: blur(25px);
+  animation: wave-drift-3 35s ease-in-out infinite;
+}
+
+.wave-path-4 {
+  fill: none;
+  stroke: rgba(130, 110, 60, 0.15);
+  stroke-width: 22;
+  filter: blur(22px);
+  animation: wave-drift-4 28s ease-in-out infinite;
+}
+
+@keyframes wave-drift-1 {
+  0%, 100% {
+    transform: translateX(0) translateY(0);
+  }
+  25% {
+    transform: translateX(8%) translateY(-50px);
+  }
+  50% {
+    transform: translateX(-5%) translateY(40px);
+  }
+  75% {
+    transform: translateX(6%) translateY(-30px);
+  }
+}
+
+@keyframes wave-drift-2 {
+  0%, 100% {
+    transform: translateX(0) translateY(0);
+  }
+  33% {
+    transform: translateX(-10%) translateY(60px);
+  }
+  66% {
+    transform: translateX(8%) translateY(-50px);
+  }
+}
+
+@keyframes wave-drift-3 {
+  0%, 100% {
+    transform: translateX(0) translateY(30px);
+  }
+  50% {
+    transform: translateX(6%) translateY(-40px);
+  }
+}
+
+@keyframes wave-drift-4 {
+  0%, 100% {
+    transform: translateX(-5%) translateY(-25px);
+  }
+  50% {
+    transform: translateX(10%) translateY(55px);
+  }
+}
+
+/* Glassmorphism Styles */
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1rem;
+}
+
+.glass-input {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 0.75rem;
+}
+
+.glass-input:focus-within {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Badge styles */
+.badge-purple {
+  display: inline-flex;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(167, 139, 250, 1);
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 9999px;
 }

@@ -20,10 +20,13 @@ export function useUserPositions() {
     }));
   }, [address, pools]);
 
-  const { data: balances, isLoading: isBalancesLoading } = useReadContracts({
+  const { data: balances, isLoading: isBalancesLoading, refetch: refetchBalances } = useReadContracts({
     contracts: balanceContracts,
     query: {
       enabled: !!address && balanceContracts.length > 0,
+      // Reasonable defaults for production - data updates on block changes
+      refetchOnMount: true,
+      refetchOnWindowFocus: false,
     },
   });
 
@@ -70,5 +73,6 @@ export function useUserPositions() {
     positions,
     isLoading: isPoolsLoading || isBalancesLoading,
     hasPositions: positions.length > 0,
+    refetch: refetchBalances,
   };
 }

@@ -81,8 +81,8 @@ describe('Add Liquidity Integration Tests', () => {
     transport: http(RPC_URL),
   });
 
-  const TKN1 = process.env.NEXT_PUBLIC_TKN1_ADDRESS as `0x${string}`;
-  const TKN2 = process.env.NEXT_PUBLIC_TKN2_ADDRESS as `0x${string}`;
+  const TKN1 = process.env.NEXT_PUBLIC_DEFAULT_TKN1_ADDRESS as `0x${string}`;
+  const TKN2 = process.env.NEXT_PUBLIC_DEFAULT_TKN2_ADDRESS as `0x${string}`;
   const ROUTER = CONTRACTS.ROUTER;
   const FACTORY = CONTRACTS.FACTORY;
 
@@ -124,6 +124,7 @@ describe('Add Liquidity Integration Tests', () => {
       abi: erc20Abi,
       functionName: 'approve',
       args: [ROUTER, approvalAmount],
+      chain: null,
     });
 
     const receipt1 = await publicClient.waitForTransactionReceipt({ hash: hash1 });
@@ -135,6 +136,7 @@ describe('Add Liquidity Integration Tests', () => {
       abi: erc20Abi,
       functionName: 'approve',
       args: [ROUTER, approvalAmount],
+      chain: null,
     });
 
     const receipt2 = await publicClient.waitForTransactionReceipt({ hash: hash2 });
@@ -190,6 +192,7 @@ describe('Add Liquidity Integration Tests', () => {
         deadline,
       ],
       gas: 5000000n,
+      chain: null,
     });
 
     console.log('Add liquidity tx:', hash);
@@ -274,6 +277,7 @@ describe('Add Liquidity Integration Tests', () => {
       functionName: 'addLiquidity',
       args: [TKN1, TKN2, amountA, amountB, 0n, 0n, account.address, deadline],
       gas: 5000000n,
+      chain: null,
     });
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash });

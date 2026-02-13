@@ -199,9 +199,54 @@ export function calculateTokenAmounts(
   if (totalSupply === BigInt(0)) {
     return { amount0: BigInt(0), amount1: BigInt(0) };
   }
-  
+
   return {
     amount0: (liquidity * reserve0) / totalSupply,
     amount1: (liquidity * reserve1) / totalSupply,
+  };
+}
+
+// ============================================
+// GAS ESTIMATION
+// ============================================
+
+export function formatGasEstimate(gasEstimate: bigint): string {
+  const gasNumber = Number(gasEstimate);
+  if (gasNumber >= 1_000_000) {
+    return `${(gasNumber / 1_000_000).toFixed(2)}M`;
+  }
+  if (gasNumber >= 1_000) {
+    return `${(gasNumber / 1_000).toFixed(0)}K`;
+  }
+  return gasNumber.toLocaleString();
+}
+
+export function calculateGasCost(
+  gasEstimate: bigint,
+  gasPrice: bigint,
+  nativeTokenPrice?: number
+): {
+  gasEstimate: bigint;
+  gasPriceGwei: string;
+  costInNative: string;
+  costInUSD?: string;
+} {
+  // Calculate cost in native token (ETH/MON)
+  const costInWei = gasEstimate * gasPrice;
+  const costInNative = formatUnits(costInWei, 18);
+
+  // Calculate USD cost if native token price is provided
+  const costInUSD = nativeTokenPrice
+    ? formatUSD(parseFloat(costInNative) * nativeTokenPrice)
+    : undefined;
+
+  // Format gas price in Gwei
+  const gasPriceGwei = formatUnits(gasPrice, 9);
+
+  return {
+    gasEstimate,
+    gasPriceGwei,
+    costInNative,
+    costInUSD,
   };
 }

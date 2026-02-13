@@ -10,10 +10,8 @@ import { DEX_SETTINGS } from "@/config";
 interface SettingsState {
   slippageTolerance: number;
   deadline: number;
-  expertMode: boolean;
   setSlippageTolerance: (value: number) => void;
   setDeadline: (value: number) => void;
-  setExpertMode: (value: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -21,10 +19,8 @@ export const useSettingsStore = create<SettingsState>()(
     (set) => ({
       slippageTolerance: DEX_SETTINGS.DEFAULT_SLIPPAGE,
       deadline: DEX_SETTINGS.DEFAULT_DEADLINE,
-      expertMode: false,
       setSlippageTolerance: (value) => set({ slippageTolerance: value }),
       setDeadline: (value) => set({ deadline: value }),
-      setExpertMode: (value) => set({ expertMode: value }),
     }),
     {
       name: "phasor-settings",

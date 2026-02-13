@@ -5,18 +5,20 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Plus, ChevronDown, AlertTriangle, ArrowDownUp, ExternalLink } from "lucide-react";
-import { useAccount } from "wagmi";
+import { useAccount, useSwitchChain } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { formatUnits } from "viem";
 import { toast } from "sonner";
 import { Token } from "@/types";
 import { useAddLiquidity, useTokenBalance } from "@/hooks";
 import { formatTokenAmount, cn } from "@/lib/utils";
+import { monad } from "@/config";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TokenSelector } from "@/components/common/TokenSelector";
 import { SettingsPopover } from "@/components/common/SettingsPopover";
+import { BackgroundGradient } from "@/components/ui/background-gradient";
 
 interface TokenInputProps {
   label: string;
@@ -44,7 +46,7 @@ function TokenInput({
   };
 
   return (
-    <div className="rounded-2xl bg-surface-3 p-4 space-y-2">
+    <div className="rounded border border-border bg-muted p-4 space-y-2">
       <div className="flex justify-between items-center">
         <span className="text-sm text-muted-foreground">{label}</span>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -56,7 +58,7 @@ function TokenInput({
               {token && balance > BigInt(0) && (
                 <button
                   onClick={handleMax}
-                  className="text-phasor-500 hover:text-phasor-400 font-medium"
+                  className="text-foreground hover:text-primary font-medium"
                 >
                   MAX
                 </button>
@@ -89,17 +91,17 @@ function TokenInput({
         >
           {token ? (
             <>
-              <div className="w-6 h-6 rounded-full bg-surface-4 flex items-center justify-center overflow-hidden">
+              <div className="w-6 h-6 rounded-full bg-secondary flex items-center justify-center overflow-hidden">
                 {token.logoURI ? (
                   <Image src={token.logoURI} alt={token.symbol} width={24} height={24} className="rounded-full object-cover" />
                 ) : (
-                  <span className="text-xs font-bold text-phasor-500">{token.symbol.charAt(0)}</span>
+                  <span className="text-xs font-bold">{token.symbol.charAt(0)}</span>
                 )}
               </div>
               <span className="font-medium">{token.symbol}</span>
             </>
           ) : (
-            <span className="text-phasor-500">Select token</span>
+            <span className="text-foreground">Select token</span>
           )}
           <ChevronDown className="h-4 w-4" />
         </Button>
@@ -110,14 +112,21 @@ function TokenInput({
 
 export function AddLiquidityCard() {
   const router = useRouter();
-  const { isConnected } = useAccount();
+  const { isConnected, chain } = useAccount();
+  const { switchChain } = useSwitchChain();
 
+  const [mounted, setMounted] = useState(false);
   const [tokenA, setTokenA] = useState<Token | null>(null);
   const [tokenB, setTokenB] = useState<Token | null>(null);
   const [amountA, setAmountA] = useState("");
   const [amountB, setAmountB] = useState("");
   const [selectorOpen, setSelectorOpen] = useState<"A" | "B" | null>(null);
   const [activeField, setActiveField] = useState<"A" | "B">("A");
+
+  // Prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const {
     quote,
@@ -137,6 +146,8 @@ export function AddLiquidityCard() {
     error,
     calculateAmountB,
     calculateAmountA,
+    gasEstimate,
+    gasCost,
   } = useAddLiquidity(tokenA, tokenB, amountA, amountB);
 
   // Auto-calculate paired amount when pool exists
@@ -233,9 +244,13 @@ export function AddLiquidityCard() {
     }
   };
 
+  // Check if on wrong chain
+  const isWrongChain = isConnected && chain?.id !== monad.id;
+
   // Button state
   const buttonState = (() => {
     if (!isConnected) return { text: "Connect Wallet", disabled: true, action: null };
+    if (isWrongChain) return { text: `Switch to ${monad.name}`, disabled: false, action: "switchChain" };
     if (!tokenA || !tokenB) return { text: "Select tokens", disabled: true, action: null };
     if (!amountA || !amountB || amountA === "0" || amountB === "0") {
       return { text: "Enter amounts", disabled: true, action: null };
@@ -249,15 +264,22 @@ export function AddLiquidityCard() {
   })();
 
   const handleButtonClick = async () => {
-    if (buttonState.action === "approveA") await approveA();
-    else if (buttonState.action === "approveB") await approveB();
-    else if (buttonState.action === "add") await addLiquidity();
+    if (buttonState.action === "switchChain") {
+      switchChain({ chainId: monad.id });
+    } else if (buttonState.action === "approveA") {
+      await approveA();
+    } else if (buttonState.action === "approveB") {
+      await approveB();
+    } else if (buttonState.action === "add") {
+      await addLiquidity();
+    }
   };
 
   return (
     <>
-      <Card className="w-full max-w-md mx-auto bg-surface-2 border-surface-4 glow-effect">
-        <CardContent className="p-6 space-y-4">
+      <BackgroundGradient variant="white" className="w-full max-w-md mx-auto">
+        <Card className="w-full max-w-md mx-auto">
+          <CardContent className="p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Button
@@ -287,7 +309,7 @@ export function AddLiquidityCard() {
           <div className="flex justify-center -my-1">
             <button
               onClick={handleSwitch}
-              className="p-2 rounded-xl bg-surface-4 border-4 border-surface-2 hover:bg-surface-5 transition-all"
+              className="p-2 rounded border border-border bg-card hover:bg-muted transition-all"
             >
               <ArrowDownUp className="h-5 w-5" />
             </button>
@@ -304,7 +326,7 @@ export function AddLiquidityCard() {
 
           {/* Pool Info */}
           {tokenA && tokenB && (
-            <div className="p-4 rounded-xl bg-surface-3/50 space-y-3">
+            <div className="p-4 rounded border border-border bg-secondary space-y-3">
               {!isLoading && !exists ? (
                 <div className="flex items-start gap-2 text-yellow-500">
                   <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
@@ -349,10 +371,18 @@ export function AddLiquidityCard() {
                       </span>
                     </div>
                     {quote && amountA && amountB && (
-                      <div className="flex justify-between pt-2 border-t border-surface-4">
+                      <div className="flex justify-between pt-2 border-t border-border">
                         <span className="text-muted-foreground">Share of pool</span>
-                        <span className="text-phasor-500 font-medium">
+                        <span className="font-medium">
                           {quote.shareOfPool.toFixed(2)}%
+                        </span>
+                      </div>
+                    )}
+                    {gasEstimate && gasCost && (
+                      <div className="flex justify-between pt-2 border-t border-border">
+                        <span className="text-muted-foreground">Estimated gas</span>
+                        <span className="font-medium">
+                          {gasEstimate} ({gasCost})
                         </span>
                       </div>
                     )}
@@ -364,17 +394,24 @@ export function AddLiquidityCard() {
 
           {/* Error */}
           {error && (
-            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
+            <div className="p-3 rounded border border-red-500/20 bg-red-500/10 text-red-500 text-sm">
               {error}
             </div>
           )}
 
           {/* Action Button */}
-          {!isConnected ? (
+          {!mounted ? (
+            <Button
+              className="w-full py-6 font-semibold"
+              disabled
+            >
+              Loading...
+            </Button>
+          ) : !isConnected ? (
             <ConnectButton.Custom>
               {({ openConnectModal }) => (
                 <Button
-                  className="w-full py-6 bg-phasor-gradient text-white font-semibold"
+                  className="w-full py-6 font-semibold"
                   onClick={openConnectModal}
                 >
                   Connect Wallet
@@ -384,7 +421,7 @@ export function AddLiquidityCard() {
           ) : (
             <Button
               className={cn(
-                "w-full py-6 bg-phasor-gradient text-white font-semibold",
+                "w-full py-6 font-semibold",
                 buttonState.disabled && "opacity-50 cursor-not-allowed"
               )}
               disabled={buttonState.disabled}
@@ -403,6 +440,7 @@ export function AddLiquidityCard() {
           </div>
         </CardContent>
       </Card>
+      </BackgroundGradient>
 
       {/* Token Selector */}
       <TokenSelector

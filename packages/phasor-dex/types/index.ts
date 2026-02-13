@@ -23,6 +23,7 @@ export interface Pool {
   reserve1: bigint;
   totalSupply: bigint;
   fee: number; // 0.3% = 30
+  isStable?: boolean;
   // Optional metrics - may not be available for new/inactive pools
   tvlUSD?: number;
   volume24hUSD?: number;
@@ -73,4 +74,135 @@ export interface SwapState {
   outputToken: Token | null;
   inputAmount: string;
   outputAmount: string;
+}
+
+// Portfolio types
+export interface PortfolioToken {
+  token: Token;
+  balance: bigint;
+  priceUSD: number;
+  price24hAgo: number;
+  valueUSD: number;
+  allocation: number; // percentage
+}
+
+export interface PortfolioTransaction {
+  id: string;
+  type: 'swap' | 'mint' | 'burn';
+  timestamp: number;
+  token0: Token;
+  token1: Token;
+  amount0: string;
+  amount1: string;
+  amountUSD: number;
+  hash: string;
+}
+
+export interface PortfolioHistoryPoint {
+  timestamp: number;
+  totalValueUSD: number;
+}
+
+// ============================================
+// VOTING ESCROW (vePHASOR) TYPES - Velodrome V2
+// ============================================
+
+export interface LockedBalance {
+  amount: bigint;
+  end: number;
+  isPermanent: boolean;
+}
+
+export interface VeNFT {
+  tokenId: bigint;
+  locked: LockedBalance;
+  votingPower: bigint;
+  voted: boolean;
+}
+
+// ============================================
+// STAKING TYPES (Velodrome Gauge)
+// ============================================
+
+export interface UserStakeInfo {
+  balance: bigint;
+  timeMultiplier: bigint;
+  pendingRewards: bigint;
+  firstStakeTime: number;
+}
+
+export interface StakingPoolInfo {
+  stakingToken: Address;
+  rewardToken: Address;
+  totalSupply: bigint;
+  rewardRate: bigint;
+  periodFinish: number;
+  duration: number;
+  rewardsLeft: bigint;
+}
+
+// ============================================
+// LAUNCHPAD TYPES (VelodromeLauncher)
+// ============================================
+
+export type SaleState = 'pending' | 'active' | 'success' | 'failed' | 'finalized' | 'cancelled';
+
+export interface SaleInfo {
+  saleId: number;
+  token: Address;
+  baseToken: Address;
+  tokenAmount: bigint;
+  price: bigint;
+  raised: bigint;
+  softCap: bigint;
+  hardCap: bigint;
+  startTime: number;
+  endTime: number;
+  finalized: boolean;
+  cancelled: boolean;
+}
+
+export interface SaleTokenMeta {
+  symbol: string;
+  name: string;
+  decimals: number;
+}
+
+export interface UserSaleInfo {
+  contribution: bigint;
+  canParticipate: boolean;
+}
+
+// ============================================
+// VOTING TYPES (Voter / Gauge)
+// ============================================
+
+export interface PoolVoteInfo {
+  pool: Address;
+  gauge: Address;
+  token0Symbol: string;
+  token1Symbol: string;
+  isStable: boolean;
+  isAlive: boolean;
+  weight: bigint;
+  weightPercent: number;
+  userVote: bigint;
+  feeAddress: Address;
+  incentiveAddress: Address;
+}
+
+export interface EpochInfo {
+  epochStart: number;
+  epochEnd: number;
+  voteStart: number;
+  voteEnd: number;
+}
+
+// ============================================
+// REWARDS TYPES (RewardsDistributor)
+// ============================================
+
+export interface RebaseReward {
+  tokenId: bigint;
+  claimable: bigint;
 }

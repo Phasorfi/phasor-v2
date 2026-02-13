@@ -54,13 +54,14 @@ export function PoolCard({ pool }: PoolCardProps) {
   };
 
   return (
-    <Card className="pool-card border-surface-4 hover:border-phasor-500/30 transition-all duration-300 w-full max-w-md mx-auto bg-surface-2">
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between">
-          {/* Token Pair */}
+    <Link href={`/pools/${pool.address}`} className="block">
+      <Card className="pool-card hover:border-primary/30 transition-all duration-300 w-full max-w-md mx-auto cursor-pointer">
+        <CardContent className="p-6">
+          <div className="flex items-start justify-between">
+            {/* Token Pair */}
           <div className="flex items-center gap-3">
             <div className="flex -space-x-2">
-              <div className="w-10 h-10 rounded-full bg-surface-4 border-2 border-surface-2 flex items-center justify-center overflow-hidden z-10">
+              <div className="w-10 h-10 rounded-full bg-secondary border-2 border-card flex items-center justify-center overflow-hidden z-10">
                 {token0.logoURI ? (
                   <Image
                     src={token0.logoURI}
@@ -70,12 +71,12 @@ export function PoolCard({ pool }: PoolCardProps) {
                     className="rounded-full object-cover"
                   />
                 ) : (
-                  <span className="text-sm font-bold text-phasor-500">
+                  <span className="text-sm font-bold">
                     {token0.symbol.charAt(0)}
                   </span>
                 )}
               </div>
-              <div className="w-10 h-10 rounded-full bg-surface-4 border-2 border-surface-2 flex items-center justify-center overflow-hidden">
+              <div className="w-10 h-10 rounded-full bg-secondary border-2 border-card flex items-center justify-center overflow-hidden">
                 {token1.logoURI ? (
                   <Image
                     src={token1.logoURI}
@@ -85,7 +86,7 @@ export function PoolCard({ pool }: PoolCardProps) {
                     className="rounded-full object-cover"
                   />
                 ) : (
-                  <span className="text-sm font-bold text-phasor-500">
+                  <span className="text-sm font-bold">
                     {token1.symbol.charAt(0)}
                   </span>
                 )}
@@ -101,12 +102,12 @@ export function PoolCard({ pool }: PoolCardProps) {
 
           {/* APR Badge */}
           {formatAPR(apr) ? (
-            <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-green-500/10 text-green-500 text-sm">
+            <div className="flex items-center gap-1 px-2 py-1 rounded bg-green-500/10 text-green-500 text-sm">
               <TrendingUp className="h-3 w-3" />
               <span>{formatAPR(apr)} APR</span>
             </div>
           ) : (
-            <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-surface-4 text-muted-foreground text-xs">
+            <div className="flex items-center gap-1 px-2 py-1 rounded border border-border bg-muted text-muted-foreground text-xs">
               <span>{isNewPool ? "New pool" : "No data yet"}</span>
             </div>
           )}
@@ -141,7 +142,7 @@ export function PoolCard({ pool }: PoolCardProps) {
         </div>
 
         {/* Reserves */}
-        <div className="mt-4 pt-4 border-t border-surface-4 space-y-2">
+        <div className="mt-4 pt-4 border-t border-border space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">{token0.symbol}</span>
             <span>{formatTokenAmount(reserve0, token0.decimals, 4)}</span>
@@ -154,17 +155,31 @@ export function PoolCard({ pool }: PoolCardProps) {
 
         {/* Actions */}
         <div className="flex gap-2 mt-4">
-          <Link href="/pools/add" className="flex-1">
-            <Button variant="outline" className="w-full">
-              Add Liquidity
-            </Button>
-          </Link>
-          <Link href="/swap" className="flex-1">
-            <Button className="w-full">Swap</Button>
-          </Link>
+          <Button
+            variant="outline"
+            className="flex-1"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              window.location.href = "/pools/add";
+            }}
+          >
+            Add Liquidity
+          </Button>
+          <Button
+            className="flex-1"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              window.location.href = "/swap";
+            }}
+          >
+            Swap
+          </Button>
         </div>
       </CardContent>
     </Card>
+    </Link>
   );
 }
 
@@ -172,7 +187,7 @@ export function PoolCard({ pool }: PoolCardProps) {
 export function EmptyPoolState() {
   return (
     <div className="text-center py-16">
-      <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-surface-3 flex items-center justify-center">
+      <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-muted flex items-center justify-center">
         <svg
           className="w-10 h-10 text-muted-foreground"
           fill="none"

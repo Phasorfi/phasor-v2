@@ -1,3 +1,5 @@
+const path = require('path')
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -9,9 +11,21 @@ const nextConfig = {
       },
     ],
   },
-  webpack: (config) => {
+  turbopack: {
+    root: path.join(__dirname),
+  },
+  webpack: (config, { isServer }) => {
     config.resolve.fallback = { fs: false, net: false, tls: false };
     config.externals.push("pino-pretty", "lokijs", "encoding");
+
+    // Polyfill indexedDB for server-side rendering
+    if (isServer) {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'fake-indexeddb': false,
+      };
+    }
+
     return config;
   },
 };

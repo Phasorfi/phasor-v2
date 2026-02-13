@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { Plus, Search } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,13 +8,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyPoolState, PoolCard } from "@/components/pool/PoolCard";
 import { UserPositions } from "@/components/pool/UserPositions";
-import { usePools, useUserPositions } from "@/hooks";
+import { usePoolsHybrid } from "@/hooks/usePoolsHybrid";
+import { useUserPositions } from "@/hooks/useUserPositions";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function PoolsPage() {
   const [search, setSearch] = useState("");
-  const { pools, isLoading } = usePools();
+  const [isMounted, setIsMounted] = useState(false);
+  const { pools, isLoading } = usePoolsHybrid();
   const { positions, isLoading: isPositionsLoading } = useUserPositions();
+
+  useEffect(() => {
+    console.log('[PoolsPage] Component mounted');
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    console.log('[PoolsPage] State:', {
+      isMounted,
+      isLoading,
+      poolsCount: pools.length,
+      pools: pools.slice(0, 2) // Log first 2 pools
+    });
+  }, [isMounted, isLoading, pools]);
 
   // Filter pools based on search
   const filteredPools = useMemo(() => {
@@ -70,7 +86,7 @@ export default function PoolsPage() {
 
           {/* All Pools */}
           <TabsContent value="all" className="space-y-4">
-            {isLoading ? (
+            {!isMounted || isLoading ? (
               <div className="space-y-4">
                 <Skeleton className="h-64 w-full" />
                 <Skeleton className="h-64 w-full" />
