@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Providers } from "@/components/Providers";
 import { Sidebar, StatsPanel } from "@/components/layout";
+import { ConnectWalletGate } from "@/components/common/ConnectWalletGate";
 import { AuroraBackground } from "@/components/ui/aurora-background";
 import "@/styles/globals.css";
 
@@ -32,7 +33,7 @@ export default function RootLayout({
 
             {/* Main Content */}
             <main className="lg:ml-[240px] pt-16 lg:pt-0 min-h-screen">
-              {children}
+              <ConnectWalletGate>{children}</ConnectWalletGate>
             </main>
 
             {/* Stats Panel */}

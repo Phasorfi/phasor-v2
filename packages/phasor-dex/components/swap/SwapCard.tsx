@@ -118,7 +118,7 @@ function TokenInput({
 
 export function SwapCard() {
   const { isConnected, address } = useAccount();
-  const searchParams = typeof window !== "undefined" ? useSearchParams() : null;
+  const searchParams = useSearchParams();
   const [mounted, setMounted] = useState(false);
 
   const [inputToken, setInputToken] = useState<Token | null>(null);
@@ -230,7 +230,7 @@ export function SwapCard() {
       <div className="w-full max-w-[320px]">
         {/* Header - outside card, no background */}
         <div className="flex items-center justify-between mb-1">
-          <h2 className="text-xs font-mono text-white">// SWAP</h2>
+          <h2 className="text-xs font-mono text-white">{"// SWAP"}</h2>
           <div className="scale-75 origin-right">
             <SettingsPopover />
           </div>

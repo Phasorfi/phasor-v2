@@ -40,7 +40,7 @@ export default function PoolDetailPage({ params }: PoolDetailPageProps) {
           <div className="text-center py-16">
             <h2 className="text-2xl font-semibold mb-2">Pool not found</h2>
             <p className="text-muted-foreground mb-6">
-              The pool you're looking for doesn't exist or hasn't been indexed yet.
+              The pool you&apos;re looking for doesn&apos;t exist or hasn&apos;t been indexed yet.
             </p>
             <Button onClick={() => router.push("/pools")}>
               Back to Pools

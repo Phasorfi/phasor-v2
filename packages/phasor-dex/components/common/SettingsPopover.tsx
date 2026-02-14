@@ -83,7 +83,7 @@ export function SettingsPopover() {
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs">
                       <p className="text-xs">
-                        Maximum price difference you're willing to accept between when you submit a transaction and when it's executed. Higher slippage may increase the chance of success but could result in worse rates.
+                        Maximum price difference you&apos;re willing to accept between when you submit a transaction and when it&apos;s executed. Higher slippage may increase the chance of success but could result in worse rates.
                       </p>
                     </TooltipContent>
                   </Tooltip>
@@ -135,7 +135,7 @@ export function SettingsPopover() {
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs">
                       <p className="text-xs">
-                        Your transaction will revert if it's pending for longer than this duration. Helps protect against price changes and stuck transactions.
+                        Your transaction will revert if it&apos;s pending for longer than this duration. Helps protect against price changes and stuck transactions.
                       </p>
                     </TooltipContent>
                   </Tooltip>
