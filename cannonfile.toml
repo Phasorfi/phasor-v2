@@ -1,0 +1,281 @@
+name = "phasor-v2"
+version = "<%= package.version %>"
+description = "Native DEX for Monad"
+keywords = ["DEX", "Monad", "Velodrome"]
+
+privateSourceCode = false
+
+# ============================================================================
+# Configuration Variables
+# ============================================================================
+# Update these addresses before deployment:
+# - deployer: EOA that pays for deployment gas
+# - safe: Multisig that receives final ownership of all contracts
+# - WMON: Wrapped MON address on the target network
+# - Token addresses: Existing tokens on testnet for Voter whitelist
+
+[var.main]
+# Deployer EOA (pays gas, initially owns contracts, then transfers to safe)
+deployer = "0x2022e2849b156A125EDB4806FA103d743f74cc74"
+# Multisig (final owner of all protocol contracts)
+safe = "0xB8C6C815B2B93394C21f944c5A061872B2765C75"
+# Existing WMON on Monad testnet
+WMON = "0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541"
+# Existing testnet token addresses (for Voter whitelist)
+# UPDATE THESE before deploying - set to 0x0 to exclude from whitelist
+USDC = "0x534b2f3A21130d7a60830c2Df862319e593943A3"
+
+# ============================================================================
+# Core DEX (Velodrome Pool System)
+# ============================================================================
+
+# Pool implementation (used as template for cloning)
+[deploy.PoolImplementation]
+artifact = "packages/velodrome-fork/contracts/Pool.sol:Pool"
+
+# PoolFactory - creates Pool clones with deterministic addresses
+[deploy.PoolFactory]
+artifact = "packages/velodrome-fork/contracts/factories/PoolFactory.sol:PoolFactory"
+args = ["<%= contracts.PoolImplementation.address %>"]
+
+# ============================================================================
+# Velodrome Libraries (must deploy before contracts that link them)
+# ============================================================================
+
+[deploy.BalanceLogicLibrary]
+artifact = "packages/velodrome-fork/contracts/libraries/BalanceLogicLibrary.sol:BalanceLogicLibrary"
+overrides = { gasLimit = "5000000" }
+
+[deploy.DelegationLogicLibrary]
+artifact = "packages/velodrome-fork/contracts/libraries/DelegationLogicLibrary.sol:DelegationLogicLibrary"
+overrides = { gasLimit = "5000000" }
+
+[deploy.PerlinNoise]
+artifact = "packages/velodrome-fork/contracts/art/PerlinNoise.sol:PerlinNoise"
+overrides = { gasLimit = "5000000" }
+
+[deploy.Trig]
+artifact = "packages/velodrome-fork/contracts/art/Trig.sol:Trig"
+overrides = { gasLimit = "5000000" }
+
+# ============================================================================
+# Velodrome Factories
+# ============================================================================
+
+[deploy.GaugeFactory]
+artifact = "packages/velodrome-fork/contracts/factories/GaugeFactory.sol:GaugeFactory"
+
+[deploy.VotingRewardsFactory]
+artifact = "packages/velodrome-fork/contracts/factories/VotingRewardsFactory.sol:VotingRewardsFactory"
+
+libraries.BalanceLogicLibrary = "<%= contracts.BalanceLogicLibrary.address %>"
+
+[deploy.ManagedRewardsFactory]
+artifact = "packages/velodrome-fork/contracts/factories/ManagedRewardsFactory.sol:ManagedRewardsFactory"
+
+libraries.BalanceLogicLibrary = "<%= contracts.BalanceLogicLibrary.address %>"
+
+# Factory Registry - registers pool/gauge/reward factory combinations
+[deploy.FactoryRegistry]
+artifact = "packages/velodrome-fork/contracts/factories/FactoryRegistry.sol:FactoryRegistry"
+args = [
+    "<%= contracts.PoolFactory.address %>",
+    "<%= contracts.VotingRewardsFactory.address %>",
+    "<%= contracts.GaugeFactory.address %>",
+    "<%= contracts.ManagedRewardsFactory.address %>"
+]
+
+# ============================================================================
+# Core ve(3,3) System
+# ============================================================================
+
+# PHASOR Token (rebranded Velo)
+[deploy.Phasor]
+artifact = "packages/velodrome-fork/contracts/Phasor.sol:Phasor"
+
+# ERC2771 Forwarder for meta-transactions
+[deploy.Forwarder]
+artifact = "packages/velodrome-fork/contracts/VeloForwarder.sol:VeloForwarder"
+
+# VotingEscrow (vePHASOR) - time-locked PHASOR for governance
+[deploy.VotingEscrow]
+artifact = "packages/velodrome-fork/contracts/VotingEscrow.sol:VotingEscrow"
+args = [
+    "<%= contracts.Forwarder.address %>",
+    "<%= contracts.Phasor.address %>",
+    "<%= contracts.FactoryRegistry.address %>"
+]
+
+libraries.BalanceLogicLibrary = "<%= contracts.BalanceLogicLibrary.address %>"
+libraries.DelegationLogicLibrary = "<%= contracts.DelegationLogicLibrary.address %>"
+
+# VeArtProxy - NFT art for vePHASOR
+[deploy.VeArtProxy]
+artifact = "packages/velodrome-fork/contracts/VeArtProxy.sol:VeArtProxy"
+args = ["<%= contracts.VotingEscrow.address %>"]
+
+libraries.PerlinNoise = "<%= contracts.PerlinNoise.address %>"
+libraries.Trig = "<%= contracts.Trig.address %>"
+
+# Voter - gauge voting and emissions distribution
+[deploy.Voter]
+artifact = "packages/velodrome-fork/contracts/Voter.sol:Voter"
+args = [
+    "<%= contracts.Forwarder.address %>",
+    "<%= contracts.VotingEscrow.address %>",
+    "<%= contracts.FactoryRegistry.address %>"
+]
+
+# RewardsDistributor - weekly reward distribution to vePHASOR holders
+[deploy.RewardsDistributor]
+artifact = "packages/velodrome-fork/contracts/RewardsDistributor.sol:RewardsDistributor"
+args = ["<%= contracts.VotingEscrow.address %>"]
+
+# Minter - controls weekly PHASOR emissions
+[deploy.Minter]
+artifact = "packages/velodrome-fork/contracts/Minter.sol:Minter"
+args = [
+    "<%= contracts.Voter.address %>",
+    "<%= contracts.VotingEscrow.address %>",
+    "<%= contracts.RewardsDistributor.address %>"
+]
+
+# Velodrome Router - swap and liquidity operations
+[deploy.Router]
+artifact = "packages/velodrome-fork/contracts/Router.sol:Router"
+args = [
+    "<%= contracts.Forwarder.address %>",
+    "<%= contracts.FactoryRegistry.address %>",
+    "<%= contracts.PoolFactory.address %>",
+    "<%= contracts.Voter.address %>",
+    "<%= settings.WMON %>"
+]
+
+# ============================================================================
+# VelodromeLauncher - Token Sale with Automatic LP + Gauge
+# ============================================================================
+
+[deploy.VelodromeLauncher]
+artifact = "packages/velodrome-fork/contracts/launchpad/VelodromeLauncher.sol:VelodromeLauncher"
+args = [
+    "<%= contracts.Router.address %>",
+    "<%= contracts.PoolFactory.address %>",
+    "<%= contracts.Voter.address %>",
+    "<%= settings.safe %>"
+]
+
+# ============================================================================
+# Initialization
+# ============================================================================
+
+# Set VeArtProxy for veNFT metadata
+[invoke.set_art_proxy]
+target = ["VotingEscrow"]
+func = "setArtProxy"
+args = ["<%= contracts.VeArtProxy.address %>"]
+
+# Link VotingEscrow to Voter and RewardsDistributor
+[invoke.set_ve_voter]
+target = ["VotingEscrow"]
+func = "setVoterAndDistributor"
+args = ["<%= contracts.Voter.address %>", "<%= contracts.RewardsDistributor.address %>"]
+
+# Mint initial PHASOR supply to multisig
+[invoke.mint_initial_phasor]
+target = ["Phasor"]
+func = "mint"
+args = ["<%= settings.safe %>", "100000000000000000000000000"]
+
+# Initialize Voter: whitelist tokens and set Minter
+[invoke.initialize_voter]
+target = ["Voter"]
+func = "initialize"
+args = [
+    ["<%= settings.WMON %>", "<%= settings.USDC %>", "<%= contracts.Phasor.address %>"],
+    "<%= contracts.Minter.address %>"
+]
+
+# Transfer minting rights from deployer to Minter contract
+# Must happen AFTER initial mint
+[invoke.set_phasor_minter]
+target = ["Phasor"]
+func = "setMinter"
+args = ["<%= contracts.Minter.address %>"]
+depends = ["invoke.mint_initial_phasor"]
+
+# Set Minter on RewardsDistributor
+[invoke.set_rewards_minter]
+target = ["RewardsDistributor"]
+func = "setMinter"
+args = ["<%= contracts.Minter.address %>"]
+
+# Configure ve-gating for VelodromeLauncher (require 1 veNFT to participate)
+[invoke.set_launcher_ve_gating]
+target = ["VelodromeLauncher"]
+func = "setVeGating"
+args = ["<%= contracts.VotingEscrow.address %>", "1"]
+
+# ============================================================================
+# Ownership Transfers (Deployer EOA -> Multisig)
+# ============================================================================
+# After deployment and initialization, transfer all admin roles to the multisig.
+# This ensures the deployer EOA has no remaining control over the protocol.
+
+# PoolFactory admin roles
+[invoke.transfer_pool_admin]
+target = ["PoolFactory"]
+func = "setPoolAdmin"
+args = ["<%= settings.safe %>"]
+depends = ["deploy.PoolFactory"]
+
+[invoke.transfer_fee_manager]
+target = ["PoolFactory"]
+func = "setFeeManager"
+args = ["<%= settings.safe %>"]
+depends = ["deploy.PoolFactory"]
+
+[invoke.transfer_pauser]
+target = ["PoolFactory"]
+func = "setPauser"
+args = ["<%= settings.safe %>"]
+depends = ["deploy.PoolFactory"]
+
+# VotingEscrow team
+[invoke.transfer_ve_team]
+target = ["VotingEscrow"]
+func = "setTeam"
+args = ["<%= settings.safe %>"]
+depends = ["invoke.set_ve_voter"]
+
+# Voter governance roles
+[invoke.transfer_governor]
+target = ["Voter"]
+func = "setGovernor"
+args = ["<%= settings.safe %>"]
+depends = ["invoke.initialize_voter"]
+
+[invoke.transfer_epoch_governor]
+target = ["Voter"]
+func = "setEpochGovernor"
+args = ["<%= settings.safe %>"]
+depends = ["invoke.initialize_voter"]
+
+[invoke.transfer_emergency_council]
+target = ["Voter"]
+func = "setEmergencyCouncil"
+args = ["<%= settings.safe %>"]
+depends = ["invoke.initialize_voter"]
+
+# Minter team
+[invoke.transfer_minter_team]
+target = ["Minter"]
+func = "setTeam"
+args = ["<%= settings.safe %>"]
+depends = ["deploy.Minter"]
+
+# VelodromeLauncher ownership (OpenZeppelin Ownable)
+[invoke.transfer_launcher_owner]
+target = ["VelodromeLauncher"]
+func = "transferOwnership"
+args = ["<%= settings.safe %>"]
+depends = ["invoke.set_launcher_ve_gating"]
