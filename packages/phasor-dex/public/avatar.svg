@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Black circle background -->
+  <circle cx="100" cy="100" r="95" fill="black"/>
+  
+  <!-- Two phase-shifted sine waves - compact and centered -->
+  <g>
+    <!-- Wave 1 -->
+    <path d="M 30 100 
+             C 35 85, 45 85, 50 100 
+             C 55 115, 65 115, 70 100 
+             C 75 85, 85 85, 90 100 
+             C 95 115, 105 115, 110 100 
+             C 115 85, 125 85, 130 100 
+             C 135 115, 145 115, 150 100
+             C 155 85, 165 85, 170 100" 
+          fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+    
+    <!-- Wave 2 - phase shifted -->
+    <path d="M 30 100 
+             C 35 115, 45 115, 50 100 
+             C 55 85, 65 85, 70 100 
+             C 75 115, 85 115, 90 100 
+             C 95 85, 105 85, 110 100 
+             C 115 115, 125 115, 130 100 
+             C 135 85, 145 85, 150 100
+             C 155 115, 165 115, 170 100" 
+          fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+  </g>
+</svg>
