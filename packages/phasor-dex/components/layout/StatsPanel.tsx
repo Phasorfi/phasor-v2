@@ -4,26 +4,25 @@ import { useQuery } from "@apollo/client/react";
 import { gql } from "@apollo/client";
 import { apolloClient } from "@/lib/apollo-client";
 
-const FACTORY_STATS_QUERY = gql`
-  query FactoryStats {
-    uniswapFactories(first: 1) {
+// Query all pools and aggregate stats client-side
+const PROTOCOL_STATS_QUERY = gql`
+  query ProtocolStats {
+    LiquidityPoolAggregator {
       id
-      pairCount
       totalVolumeUSD
       totalLiquidityUSD
     }
   }
 `;
 
-interface FactoryData {
+interface PoolData {
   id: string;
-  pairCount: number;
   totalVolumeUSD: string;
   totalLiquidityUSD: string;
 }
 
-interface FactoryStatsQueryResult {
-  uniswapFactories: FactoryData[];
+interface ProtocolStatsQueryResult {
+  LiquidityPoolAggregator: PoolData[];
 }
 
 function formatNumber(value: string | number, decimals: number = 2): string {
@@ -41,15 +40,16 @@ function formatNumber(value: string | number, decimals: number = 2): string {
 }
 
 export function StatsPanel() {
-  const { data } = useQuery<FactoryStatsQueryResult>(FACTORY_STATS_QUERY, {
+  const { data } = useQuery<ProtocolStatsQueryResult>(PROTOCOL_STATS_QUERY, {
     client: apolloClient,
     pollInterval: 30000, // Refresh every 30 seconds
   });
 
-  const factory = data?.uniswapFactories?.[0];
-  const totalVolume = factory?.totalVolumeUSD || "0";
-  const totalLiquidity = factory?.totalLiquidityUSD || "0";
-  const pairCount = factory?.pairCount || 0;
+  // Aggregate stats from all pools
+  const pools = data?.LiquidityPoolAggregator || [];
+  const totalVolume = pools.reduce((sum, p) => sum + parseFloat(p.totalVolumeUSD || "0"), 0).toString();
+  const totalLiquidity = pools.reduce((sum, p) => sum + parseFloat(p.totalLiquidityUSD || "0"), 0).toString();
+  const pairCount = pools.length;
 
   return (
     <aside className="hidden lg:flex fixed right-0 bottom-0 w-[200px] flex-col justify-end p-6 pb-20 pr-6 z-40">

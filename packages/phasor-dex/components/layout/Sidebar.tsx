@@ -5,6 +5,8 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
+import { Menu, X } from "lucide-react";
 
 const navLinks = [
   { href: "/dashboard", label: "Dashboard" },
@@ -43,6 +45,7 @@ function GitHubIcon({ className }: { className?: string }) {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <>
@@ -142,60 +145,75 @@ export function Sidebar() {
       </aside>
 
       {/* Mobile Header */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 h-16 flex items-center justify-between px-4 bg-surface-1/90 backdrop-blur-md border-b border-white/5 z-50">
-        {/* Logo */}
-        <Link href="/">
-          <Image
-            src="/images/logo.png"
-            alt="Phasor"
-            width={100}
-            height={32}
-            className="h-6 w-auto"
-            priority
-          />
-        </Link>
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-50">
+        <div className="flex items-center justify-between px-4 h-16 bg-surface-1/90 backdrop-blur-md border-b border-white/5">
+          {/* Logo */}
+          <Link href="/">
+            <Image
+              src="/images/logo.png"
+              alt="Phasor"
+              width={100}
+              height={32}
+              className="h-6 w-auto"
+              priority
+            />
+          </Link>
 
-        {/* Mobile Nav */}
-        <nav className="flex items-center gap-3 overflow-x-auto">
-          {navLinks.map((link) => {
-            const isActive = link.href === "/"
-              ? pathname === "/" || pathname === "/swap"
-              : pathname.startsWith(link.href);
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={cn(
-                  "text-sm font-medium transition-colors",
-                  isActive ? "text-white" : "text-white/60 hover:text-white"
-                )}
-              >
-                {link.label}
-              </Link>
-            );
-          })}
-        </nav>
+          <div className="flex items-center gap-3">
+            {/* Connect Button */}
+            <ConnectButton.Custom>
+              {({ account, chain, openConnectModal, openAccountModal, mounted }) => {
+                const connected = mounted && account && chain;
+                return (
+                  <button
+                    onClick={connected ? openAccountModal : openConnectModal}
+                    className="px-3 py-1.5 text-sm font-medium rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-colors text-white/90"
+                  >
+                    {connected ? (
+                      <span className="truncate max-w-[100px] block">
+                        {account.displayName}
+                      </span>
+                    ) : (
+                      "Connect"
+                    )}
+                  </button>
+                );
+              }}
+            </ConnectButton.Custom>
 
-        {/* Connect Button */}
-        <ConnectButton.Custom>
-          {({ account, chain, openConnectModal, openAccountModal, mounted }) => {
-            const connected = mounted && account && chain;
-            return (
-              <button
-                onClick={connected ? openAccountModal : openConnectModal}
-                className="px-3 py-1.5 text-sm font-medium rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-colors text-white/90"
-              >
-                {connected ? (
-                  <span className="truncate max-w-[100px] block">
-                    {account.displayName}
-                  </span>
-                ) : (
-                  "Connect"
-                )}
-              </button>
-            );
-          }}
-        </ConnectButton.Custom>
+            {/* Hamburger */}
+            <button
+              onClick={() => setMobileMenuOpen((o) => !o)}
+              className="p-1 text-white/80 hover:text-white transition-colors"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Dropdown Menu */}
+        {mobileMenuOpen && (
+          <nav className="bg-surface-1/95 backdrop-blur-md border-b border-white/5 px-4 py-3 flex flex-col gap-1">
+            {navLinks.map((link) => {
+              const isActive = link.href === "/"
+                ? pathname === "/" || pathname === "/swap"
+                : pathname.startsWith(link.href);
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={cn(
+                    "py-2 text-sm font-medium transition-colors",
+                    isActive ? "text-[#614bdf]" : "text-white/70 hover:text-white"
+                  )}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+          </nav>
+        )}
       </header>
     </>
   );
